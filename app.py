@@ -1,7 +1,7 @@
 import streamlit as st
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 st.set_page_config(page_title="Scribe", layout="wide")
 

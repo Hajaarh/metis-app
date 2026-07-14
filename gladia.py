@@ -24,10 +24,24 @@ def transcribe(audio_bytes: bytes, filename: str, number_of_speakers: int | None
     audio_url = resp.json()["audio_url"]
 
     # lancement de la transcription avec diarisation
-    job = {"audio_url": audio_url, "diarization": True}
+    job = {
+        "audio_url": audio_url,
+        "model": "solaria-1",
+        "custom_vocabulary": False,
+        "translation": False,
+        "custom_spelling": False,
+        "language_config": {"languages": ["fr", "en"], "code_switching": True},
+        "diarization": True,
+        "diarization_config": {"enhanced": True},
+        "name_consistency": True,
+        "punctuation_enhanced": False,
+        "sentiment_analysis": True,
+        "named_entity_recognition": True,
+        "callback": False,
+    }
     if number_of_speakers:
         # indice donne au modele pour ameliorer la diarisation
-        job["diarization_config"] = {"number_of_speakers": number_of_speakers}
+        job["diarization_config"]["number_of_speakers"] = number_of_speakers
     resp = requests.post(
         f"{BASE_URL}/pre-recorded",
         headers=headers,
