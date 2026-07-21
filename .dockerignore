@@ -1,0 +1,11 @@
+.venv/
+.git/
+data/
+audios/
+docs/
+frontend/
+__pycache__/
+**/__pycache__/
+*.pyc
+.env
+*.md
