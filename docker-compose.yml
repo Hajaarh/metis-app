@@ -1,0 +1,55 @@
+networks:
+  scribe-net:
+    driver: bridge
+
+services:
+
+  maquette:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: scribe-maquette
+    restart: unless-stopped
+    environment:
+      - GLADIA_API_KEY=${GLADIA_API_KEY}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./maquette:/app/maquette
+      - ./tools:/app/tools
+    networks:
+      - scribe-net
+
+  frontend:
+    build:
+      context: ./frontend/scribe-front
+      dockerfile: Dockerfile
+    container_name: scribe-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/scribe-front:/app
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - scribe-net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: scribe-backend
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      - ENV=dev
+      - GLADIA_API_KEY=${GLADIA_API_KEY}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app
+    networks:
+      - scribe-net

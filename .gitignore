@@ -221,3 +221,6 @@ __marimo__/
 data/
 audios/
 docs/
+.claude/*
+frontend/scribe-front/package-lock.json
+frontend/scribe-front/CLAUDE.md
