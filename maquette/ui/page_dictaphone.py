@@ -1,9 +1,9 @@
 import streamlit as st
 
-import audio as audio_utils
-import gladia
-import mistral
-import docs.mock_data as mock_data
+import tools.audio as audio_utils
+import tools.gladia as gladia
+import tools.mistral as mistral
+# import docs.mock_data as mock_data
 
 
 def _reinitialiser():

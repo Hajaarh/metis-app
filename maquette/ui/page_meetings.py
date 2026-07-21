@@ -1,6 +1,6 @@
 import streamlit as st
 
-import storage
+import tools.storage as storage
 
 st.title("Réunions")
 

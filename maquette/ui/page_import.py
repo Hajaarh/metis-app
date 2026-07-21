@@ -4,9 +4,9 @@ from datetime import datetime, timezone
 
 import streamlit as st
 
-import audio as audio_utils
-import gladia
-import storage
+import tools.audio as audio_utils
+import tools.gladia as gladia
+import tools.storage as storage
 
 st.title("Importer une réunion")
 

@@ -2,9 +2,9 @@ import time
 
 import streamlit as st
 
-import audio as audio_utils
-import gladia
-import mistral
+import tools.audio as audio_utils
+import tools.gladia as gladia
+import tools.mistral as mistral
 
 PROVIDERS = {
     "Gladia": gladia.transcribe,
