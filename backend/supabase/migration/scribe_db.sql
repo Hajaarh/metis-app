@@ -4,7 +4,7 @@ create table utilisateur (
     id uuid primary key references auth.users(id) on delete cascade,  
     email text not null unique,
     duree_retention_jours int not null,
-    taux_horaire float8,                 -- nullable - Avancé
+    taux_horaire float8,                 
     date_creation timestamp not null default now()
 );
 
@@ -14,16 +14,14 @@ create table client (
     utilisateur_id uuid not null references utilisateur(id) on delete cascade,
     nom text not null,
     date_creation timestamp not null default now(),
-    date_dernier_contact timestamp        -- base du calcul CNIL
+    date_dernier_contact timestamp        
 );
 
--- ============================================================
--- 3. REUNION
--- ============================================================
+
 create table reunion (
     id uuid primary key default gen_random_uuid(),
     utilisateur_id uuid not null references utilisateur(id) on delete cascade,
-    client_id uuid references client(id) on delete set null,   -- nullable - Avancé
+    client_id uuid references client(id) on delete set null,   
     mode text not null,                
     titre text not null,
     date_debut timestamp not null,
@@ -43,29 +41,26 @@ create table reunion (
 
 create table attestation_organisateur (
     id uuid primary key default gen_random_uuid(),
-    reunion_id uuid not null unique references reunion(id) on delete cascade,  -- relation 1-1
+    reunion_id uuid not null unique references reunion(id) on delete cascade,  
     utilisateur_id uuid not null references utilisateur(id) on delete cascade,
     horodatage timestamp not null default now(),
-    version_texte text not null            -- traçabilité du texte attesté
+    version_texte text not null            
 );
 
 
 create table consentement_participant (
     id uuid primary key default gen_random_uuid(),
     reunion_id uuid not null references reunion(id) on delete cascade,
-    jeton text not null unique,            -- lien unique - aucune identité
-    choix text not null,                   -- 'accepte' ou 'refuse'
+    jeton text not null unique,           
+    choix text not null,                  
     horodatage timestamp not null default now()
 );
 
--- ============================================================
--- 6. LOCUTEUR
--- ============================================================
 create table locuteur (
     id uuid primary key default gen_random_uuid(),
     reunion_id uuid not null references reunion(id) on delete cascade,
-    label text not null,                   -- 'Locuteur A', 'Locuteur B'...
-    nom_nominatif text                     -- nullable - Avancé, saisi manuellement
+    label text not null,                  
+    nom_nominatif text                     
 );
 
 
@@ -76,17 +71,17 @@ create table segment (
     texte text not null,
     horodatage_debut float8 not null,
     horodatage_fin float8 not null,
-    inaudible boolean not null default false  -- passage signalé, jamais inventé
+    inaudible boolean not null default false 
 );
 
 
 create table compte_rendu (
     id uuid primary key default gen_random_uuid(),
-    reunion_id uuid not null unique references reunion(id) on delete cascade,  -- relation 1-1
+    reunion_id uuid not null unique references reunion(id) on delete cascade,  
     resume text not null,
     date_generation timestamp not null default now(),
-    modele_utilise text not null,          -- traçabilité
-    version int not null default 1         -- incrémenté si régénération
+    modele_utilise text not null,          
+    version int not null default 1         
 );
 
 
@@ -97,9 +92,7 @@ create table point_cle (
     ordre int not null
 );
 
--- ============================================================
--- 10. DECISION
--- ============================================================
+
 create table decision (
     id uuid primary key default gen_random_uuid(),
     compte_rendu_id uuid not null references compte_rendu(id) on delete cascade,
@@ -112,13 +105,11 @@ create table action (
     id uuid primary key default gen_random_uuid(),
     compte_rendu_id uuid not null references compte_rendu(id) on delete cascade,
     intitule text not null,
-    responsable text,                      -- nullable
-    echeance date                          -- nullable
+    responsable text,                     
+    echeance date                          
 );
 
--- ============================================================
--- 12. THEME
--- ============================================================
+
 create table theme (
     id uuid primary key default gen_random_uuid(),
     nom text not null unique
