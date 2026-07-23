@@ -1,65 +1,97 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import Link from "next/link";
+import { Plus, Search, Users } from "lucide-react";
+import { AppSidebar } from "@/app/components/AppSidebar";
+import { StatusDot } from "@/app/components/StatusDot";
+import { Button } from "@/app/components/ui/button";
+import { Badge } from "@/app/components/ui/badge";
+import { MOCK_REUNIONS, formatDuration, formatTime } from "@/app/lib/mock-data";
+
+const GROUPS: [string, typeof MOCK_REUNIONS][] = [
+  ["Aujourd'hui", MOCK_REUNIONS.filter((r) => r.date === "today")],
+  ["Hier", MOCK_REUNIONS.filter((r) => r.date === "yesterday")],
+  ["Cette semaine", MOCK_REUNIONS.filter((r) => r.date === "week")],
+];
+
+export default function DashboardPage() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <AppSidebar>
+      {/* Header */}
+      <div className="flex items-center justify-between px-8 pt-6 pb-4 shrink-0 border-b border-border">
+        <div>
+          <h1 className="text-xl font-medium text-foreground">Réunions</h1>
+          <p className="text-sm text-muted-foreground">{MOCK_REUNIONS.length} réunions</p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 h-8 rounded-xl px-3 bg-secondary">
+            <Search size={12} strokeWidth={2} className="text-muted-foreground" />
+            <input
+              placeholder="Rechercher…"
+              className="bg-transparent text-[12.5px] outline-none border-none placeholder:text-muted-foreground text-foreground w-40"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </div>
+          <Button asChild size="sm">
+            <Link href="/reunions/new">
+              <Plus size={14} />
+              Nouvelle réunion
+            </Link>
+          </Button>
         </div>
-      </main>
-    </div>
+      </div>
+
+      {/* Meeting list */}
+      <div className="flex-1 overflow-y-auto px-8 py-6 scrollbar-hide">
+        {GROUPS.map(([label, reunions]) =>
+          reunions.length > 0 ? (
+            <div key={label} className="mb-8">
+              <p className="text-[10.5px] uppercase tracking-widest font-medium text-muted-foreground mb-3 px-1">
+                {label}
+              </p>
+              <div className="space-y-1">
+                {reunions.map((reunion) => (
+                  <Link
+                    key={reunion.id}
+                    href={`/reunions/${reunion.id}`}
+                    className="flex items-center gap-4 px-4 py-3 rounded-xl transition-colors hover:bg-muted/50 group"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-[13.5px] font-medium text-foreground truncate">
+                          {reunion.titre}
+                        </span>
+                        <StatusDot status={reunion.statutTraitement} />
+                      </div>
+                      <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                        <span>{formatTime(reunion.dateDebut)}</span>
+                        <span>·</span>
+                        <span>{formatDuration(reunion.dureeSecondes)}</span>
+                        {reunion.clientNom && (
+                          <>
+                            <span>·</span>
+                            <span className="text-foreground/70">{reunion.clientNom}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="flex items-center gap-1">
+                        <Users size={12} className="text-muted-foreground" />
+                        <span className="text-[12px] text-muted-foreground">
+                          {reunion.nombreParticipants}
+                        </span>
+                      </div>
+                      <Badge variant="secondary" className="text-[11px]">
+                        {reunion.mode === "dictaphone" ? "Dictaphone" : "Visio"}
+                      </Badge>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ) : null,
+        )}
+      </div>
+    </AppSidebar>
   );
 }
