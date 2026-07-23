@@ -15,8 +15,11 @@ class Identifiants(BaseModel):
 
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
-def signup(identifiants: Identifiants, repository: Repository = Depends(get_repository)):
-    client = get_supabase_client()
+def signup(
+    identifiants: Identifiants,
+    repository: Repository = Depends(get_repository),
+    client=Depends(get_supabase_client),
+):
     try:
         reponse = client.auth.sign_up({"email": identifiants.email, "password": identifiants.password})
     except Exception:
@@ -26,8 +29,7 @@ def signup(identifiants: Identifiants, repository: Repository = Depends(get_repo
 
 
 @router.post("/login")
-def login(identifiants: Identifiants):
-    client = get_supabase_client()
+def login(identifiants: Identifiants, client=Depends(get_supabase_client)):
     try:
         reponse = client.auth.sign_in_with_password(
             {"email": identifiants.email, "password": identifiants.password}

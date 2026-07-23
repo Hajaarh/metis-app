@@ -6,8 +6,10 @@ from app.db.client import get_supabase_client
 bearer_scheme = HTTPBearer()
 
 
-def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)) -> str:
-    client = get_supabase_client()
+def get_current_user_id(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    client=Depends(get_supabase_client),
+) -> str:
     try:
         reponse = client.auth.get_user(credentials.credentials)
     except Exception:
