@@ -1,6 +1,5 @@
 create extension if not exists "pgcrypto";
 
-
 create table utilisateur (
     id uuid primary key references auth.users(id) on delete cascade,  
     email text not null unique,
