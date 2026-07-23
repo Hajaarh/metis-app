@@ -1,0 +1,249 @@
+from datetime import date, datetime, timezone
+
+from app.contracts.meeting_intelligence import MeetingIntelligence
+from app.contracts.transcript import Transcript
+from app.db import models
+from app.db.client import get_supabase_client
+
+
+def now_iso():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def parse_date(valeur):
+    if valeur is None:
+        return None
+    try:
+        date.fromisoformat(valeur)
+        return valeur
+    except ValueError:
+        return None
+
+
+class Repository:
+    def __init__(self, client=None):
+        self.client = client or get_supabase_client()
+
+    def create_user_profile(self, user_id: str, email: str, duree_retention_jours: int) -> dict:
+        ligne = {
+            "id": user_id,
+            "email": email,
+            "duree_retention_jours": duree_retention_jours,
+        }
+        reponse = self.client.table(models.TABLE_UTILISATEUR).insert(ligne).execute()
+        return reponse.data[0]
+
+    def create_meeting(self, user_id: str, titre: str) -> str:
+        ligne = {
+            "utilisateur_id": user_id,
+            "mode": models.MODE_DICTAPHONE,
+            "titre": titre,
+            "date_debut": now_iso(),
+            "base_legale": models.BASE_LEGALE_CONSENTEMENT,
+            "statut_traitement": models.STATUT_EN_ATTENTE,
+            "audio_purge": False,
+        }
+        reponse = self.client.table(models.TABLE_REUNION).insert(ligne).execute()
+        return reponse.data[0]["id"]
+
+    def set_meeting_status(self, reunion_id: str, statut: str) -> None:
+        self.client.table(models.TABLE_REUNION).update(
+            {"statut_traitement": statut}
+        ).eq("id", reunion_id).execute()
+
+    def save_attestation(self, reunion_id: str, user_id: str) -> dict:
+        ligne = {
+            "reunion_id": reunion_id,
+            "utilisateur_id": user_id,
+            "version_texte": models.VERSION_ATTESTATION,
+        }
+        reponse = self.client.table(models.TABLE_ATTESTATION).insert(ligne).execute()
+        return reponse.data[0]
+
+    def save_participant_consent(self, reunion_id: str, accepte: bool) -> dict:
+        import uuid
+
+        ligne = {
+            "reunion_id": reunion_id,
+            "jeton": str(uuid.uuid4()),
+            "choix": "accepte" if accepte else "refuse",
+        }
+        reponse = self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT).insert(ligne).execute()
+        return reponse.data[0]
+
+    def has_attestation(self, reunion_id: str) -> bool:
+        reponse = (
+            self.client.table(models.TABLE_ATTESTATION)
+            .select("id")
+            .eq("reunion_id", reunion_id)
+            .execute()
+        )
+        return len(reponse.data) > 0
+
+    def save_transcript(self, transcript: Transcript) -> None:
+        labels = sorted({segment.speaker_label for segment in transcript.segments})
+        lignes_locuteurs = [{"reunion_id": transcript.meeting_id, "label": label} for label in labels]
+        reponse = self.client.table(models.TABLE_LOCUTEUR).insert(lignes_locuteurs).execute()
+        identifiants = {ligne["label"]: ligne["id"] for ligne in reponse.data}
+        lignes_segments = [
+            {
+                "reunion_id": transcript.meeting_id,
+                "locuteur_id": identifiants[segment.speaker_label],
+                "texte": segment.text,
+                "horodatage_debut": segment.start_time,
+                "horodatage_fin": segment.end_time,
+                "inaudible": segment.is_inaudible,
+            }
+            for segment in transcript.segments
+        ]
+        self.client.table(models.TABLE_SEGMENT).insert(lignes_segments).execute()
+
+    def save_intelligence(self, reunion_id: str, intelligence: MeetingIntelligence, modele_utilise: str) -> None:
+        compte_rendu = (
+            self.client.table(models.TABLE_COMPTE_RENDU)
+            .insert(
+                {
+                    "reunion_id": reunion_id,
+                    "resume": intelligence.summary,
+                    "modele_utilise": modele_utilise,
+                }
+            )
+            .execute()
+        )
+        compte_rendu_id = compte_rendu.data[0]["id"]
+        self.save_ordered(models.TABLE_POINT_CLE, compte_rendu_id, intelligence.key_points)
+        self.save_ordered(models.TABLE_DECISION, compte_rendu_id, intelligence.decisions)
+        self.save_actions(compte_rendu_id, intelligence.actions)
+        self.client.table(models.TABLE_REUNION).update(
+            {"type_reunion": intelligence.meeting_type}
+        ).eq("id", reunion_id).execute()
+        for nom in dict.fromkeys(intelligence.themes):
+            self.link_theme(reunion_id, nom)
+
+    def save_ordered(self, table: str, compte_rendu_id: str, contenus: list) -> None:
+        if not contenus:
+            return
+        lignes = [
+            {"compte_rendu_id": compte_rendu_id, "contenu": contenu, "ordre": ordre}
+            for ordre, contenu in enumerate(contenus)
+        ]
+        self.client.table(table).insert(lignes).execute()
+
+    def save_actions(self, compte_rendu_id: str, actions: list) -> None:
+        if not actions:
+            return
+        lignes = [
+            {
+                "compte_rendu_id": compte_rendu_id,
+                "intitule": action.label,
+                "responsable": action.responsible,
+                "echeance": parse_date(action.due_date),
+            }
+            for action in actions
+        ]
+        self.client.table(models.TABLE_ACTION).insert(lignes).execute()
+
+    def link_theme(self, reunion_id: str, nom: str) -> None:
+        existant = self.client.table(models.TABLE_THEME).select("id").eq("nom", nom).execute()
+        if existant.data:
+            theme_id = existant.data[0]["id"]
+        else:
+            cree = self.client.table(models.TABLE_THEME).insert({"nom": nom}).execute()
+            theme_id = cree.data[0]["id"]
+        self.client.table(models.TABLE_REUNION_THEME).insert(
+            {"reunion_id": reunion_id, "theme_id": theme_id}
+        ).execute()
+
+    def log_audio_purge(self, reunion_id: str) -> None:
+        self.client.table(models.TABLE_REUNION).update(
+            {"audio_purge": True, "date_purge_audio": now_iso()}
+        ).eq("id", reunion_id).execute()
+
+    def list_meetings(self, user_id: str) -> list:
+        reponse = (
+            self.client.table(models.TABLE_REUNION)
+            .select("id, titre, statut_traitement, date_debut")
+            .eq("utilisateur_id", user_id)
+            .order("date_debut", desc=True)
+            .execute()
+        )
+        return reponse.data
+
+    def get_meeting(self, reunion_id: str, user_id: str) -> dict | None:
+        reponse = (
+            self.client.table(models.TABLE_REUNION)
+            .select("*")
+            .eq("id", reunion_id)
+            .eq("utilisateur_id", user_id)
+            .execute()
+        )
+        return reponse.data[0] if reponse.data else None
+
+    def get_meeting_detail(self, reunion_id: str, user_id: str) -> dict | None:
+        reunion = self.get_meeting(reunion_id, user_id)
+        if reunion is None:
+            return None
+        segments = (
+            self.client.table(models.TABLE_SEGMENT)
+            .select("*")
+            .eq("reunion_id", reunion_id)
+            .order("horodatage_debut")
+            .execute()
+        )
+        compte_rendu = (
+            self.client.table(models.TABLE_COMPTE_RENDU).select("*").eq("reunion_id", reunion_id).execute()
+        )
+        detail = {
+            "reunion": reunion,
+            "segments": segments.data,
+            "compte_rendu": None,
+            "points_cles": [],
+            "decisions": [],
+            "actions": [],
+        }
+        if compte_rendu.data:
+            compte_rendu_id = compte_rendu.data[0]["id"]
+            detail["compte_rendu"] = compte_rendu.data[0]
+            detail["points_cles"] = self.read_children(models.TABLE_POINT_CLE, compte_rendu_id)
+            detail["decisions"] = self.read_children(models.TABLE_DECISION, compte_rendu_id)
+            detail["actions"] = self.read_children(models.TABLE_ACTION, compte_rendu_id)
+        return detail
+
+    def read_children(self, table: str, compte_rendu_id: str) -> list:
+        reponse = self.client.table(table).select("*").eq("compte_rendu_id", compte_rendu_id).execute()
+        return reponse.data
+
+    def delete_meeting(self, reunion_id: str, user_id: str) -> bool:
+        if self.get_meeting(reunion_id, user_id) is None:
+            return False
+        self.client.table(models.TABLE_REUNION).delete().eq("id", reunion_id).execute()
+        return True
+
+    def dashboard_metrics(self, user_id: str) -> dict:
+        reunions = (
+            self.client.table(models.TABLE_REUNION)
+            .select("id, statut_traitement")
+            .eq("utilisateur_id", user_id)
+            .execute()
+        )
+        terminees = [ligne for ligne in reunions.data if ligne["statut_traitement"] == models.STATUT_TERMINE]
+        reunion_ids = [ligne["id"] for ligne in reunions.data]
+        return {
+            "nombre_reunions": len(reunions.data),
+            "nombre_reunions_terminees": len(terminees),
+            "nombre_actions": self.count_actions(reunion_ids),
+        }
+
+    def count_actions(self, reunion_ids: list) -> int:
+        if not reunion_ids:
+            return 0
+        comptes = (
+            self.client.table(models.TABLE_COMPTE_RENDU).select("id").in_("reunion_id", reunion_ids).execute()
+        )
+        compte_rendu_ids = [ligne["id"] for ligne in comptes.data]
+        if not compte_rendu_ids:
+            return 0
+        actions = (
+            self.client.table(models.TABLE_ACTION).select("id").in_("compte_rendu_id", compte_rendu_ids).execute()
+        )
+        return len(actions.data)
