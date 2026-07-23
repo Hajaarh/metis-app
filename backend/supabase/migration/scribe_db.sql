@@ -1,9 +1,5 @@
--- Extension nécessaire pour uuid_generate
 create extension if not exists "pgcrypto";
 
--- ============================================================
--- 1. UTILISATEUR
--- ============================================================
 create table utilisateur (
     id uuid primary key references auth.users(id) on delete cascade,  
     email text not null unique,
@@ -12,9 +8,7 @@ create table utilisateur (
     date_creation timestamp not null default now()
 );
 
--- ============================================================
--- 2. CLIENT
--- ============================================================
+
 create table client (
     id uuid primary key default gen_random_uuid(),
     utilisateur_id uuid not null references utilisateur(id) on delete cascade,
@@ -30,25 +24,23 @@ create table reunion (
     id uuid primary key default gen_random_uuid(),
     utilisateur_id uuid not null references utilisateur(id) on delete cascade,
     client_id uuid references client(id) on delete set null,   -- nullable - Avancé
-    mode text not null,                   -- 'dictaphone' ou 'visio'
+    mode text not null,                
     titre text not null,
     date_debut timestamp not null,
     duree_secondes int,
-    type_reunion text,                    -- classification LLM
-    base_legale text not null,            -- 'consentement' ou 'interet_legitime'
+    type_reunion text,                  
+    base_legale text not null,          
     statut_traitement text not null,
     audio_purge boolean not null default false,
-    date_purge_audio timestamp,           -- nullable
-    nombre_participants int,              -- nullable - visio uniquement
-    audio_url text,                       -- lien vers le fichier stocké (ex: Supabase Storage)
-    audio_nom_fichier text,               -- nom original du fichier
-    audio_taille_octets bigint,           -- taille en octets
-    audio_mime_type text                  -- ex: 'audio/mpeg', 'audio/wav'
+    date_purge_audio timestamp,           
+    nombre_participants int,             
+    audio_url text,                       
+    audio_nom_fichier text,               
+    audio_taille_octets bigint,           
+    audio_mime_type text                  
 );
 
--- ============================================================
--- 4. ATTESTATION_ORGANISATEUR
--- ============================================================
+
 create table attestation_organisateur (
     id uuid primary key default gen_random_uuid(),
     reunion_id uuid not null unique references reunion(id) on delete cascade,  -- relation 1-1
@@ -57,9 +49,7 @@ create table attestation_organisateur (
     version_texte text not null            -- traçabilité du texte attesté
 );
 
--- ============================================================
--- 5. CONSENTEMENT_PARTICIPANT
--- ============================================================
+
 create table consentement_participant (
     id uuid primary key default gen_random_uuid(),
     reunion_id uuid not null references reunion(id) on delete cascade,
@@ -78,9 +68,7 @@ create table locuteur (
     nom_nominatif text                     -- nullable - Avancé, saisi manuellement
 );
 
--- ============================================================
--- 7. SEGMENT
--- ============================================================
+
 create table segment (
     id uuid primary key default gen_random_uuid(),
     reunion_id uuid not null references reunion(id) on delete cascade,
@@ -91,9 +79,7 @@ create table segment (
     inaudible boolean not null default false  -- passage signalé, jamais inventé
 );
 
--- ============================================================
--- 8. COMPTE_RENDU
--- ============================================================
+
 create table compte_rendu (
     id uuid primary key default gen_random_uuid(),
     reunion_id uuid not null unique references reunion(id) on delete cascade,  -- relation 1-1
@@ -103,9 +89,7 @@ create table compte_rendu (
     version int not null default 1         -- incrémenté si régénération
 );
 
--- ============================================================
--- 9. POINT_CLE
--- ============================================================
+
 create table point_cle (
     id uuid primary key default gen_random_uuid(),
     compte_rendu_id uuid not null references compte_rendu(id) on delete cascade,
@@ -123,9 +107,7 @@ create table decision (
     ordre int not null
 );
 
--- ============================================================
--- 11. ACTION
--- ============================================================
+
 create table action (
     id uuid primary key default gen_random_uuid(),
     compte_rendu_id uuid not null references compte_rendu(id) on delete cascade,
@@ -142,18 +124,14 @@ create table theme (
     nom text not null unique
 );
 
--- ============================================================
--- 13. REUNION_THEME (table de liaison many-to-many)
--- ============================================================
+
 create table reunion_theme (
     reunion_id uuid not null references reunion(id) on delete cascade,
     theme_id uuid not null references theme(id) on delete cascade,
     primary key (reunion_id, theme_id)
 );
 
--- ============================================================
--- Index utiles sur les clés étrangères (perf)
--- ============================================================
+
 create index idx_client_utilisateur on client(utilisateur_id);
 create index idx_reunion_utilisateur on reunion(utilisateur_id);
 create index idx_reunion_client on reunion(client_id);
