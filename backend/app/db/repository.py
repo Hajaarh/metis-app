@@ -46,10 +46,11 @@ class Repository:
         reponse = self.client.table(models.TABLE_REUNION).insert(ligne).execute()
         return reponse.data[0]["id"]
 
+    def _update_meeting(self, reunion_id: str, valeurs: dict) -> None:
+        self.client.table(models.TABLE_REUNION).update(valeurs).eq("id", reunion_id).execute()
+
     def set_meeting_status(self, reunion_id: str, statut: str) -> None:
-        self.client.table(models.TABLE_REUNION).update(
-            {"statut_traitement": statut}
-        ).eq("id", reunion_id).execute()
+        self._update_meeting(reunion_id, {"statut_traitement": statut})
 
     def save_attestation(self, reunion_id: str, user_id: str) -> dict:
         ligne = {
@@ -114,9 +115,7 @@ class Repository:
         self.save_ordered(models.TABLE_POINT_CLE, compte_rendu_id, intelligence.key_points)
         self.save_ordered(models.TABLE_DECISION, compte_rendu_id, intelligence.decisions)
         self.save_actions(compte_rendu_id, intelligence.actions)
-        self.client.table(models.TABLE_REUNION).update(
-            {"type_reunion": intelligence.meeting_type}
-        ).eq("id", reunion_id).execute()
+        self._update_meeting(reunion_id, {"type_reunion": intelligence.meeting_type})
         for nom in dict.fromkeys(intelligence.themes):
             self.link_theme(reunion_id, nom)
 
@@ -155,9 +154,7 @@ class Repository:
         ).execute()
 
     def log_audio_purge(self, reunion_id: str) -> None:
-        self.client.table(models.TABLE_REUNION).update(
-            {"audio_purge": True, "date_purge_audio": now_iso()}
-        ).eq("id", reunion_id).execute()
+        self._update_meeting(reunion_id, {"audio_purge": True, "date_purge_audio": now_iso()})
 
     def list_meetings(self, user_id: str) -> list:
         reponse = (
