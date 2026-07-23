@@ -1,12 +1,12 @@
+-- Extension nécessaire pour uuid_generate
 create extension if not exists "pgcrypto";
 
 -- ============================================================
 -- 1. UTILISATEUR
 -- ============================================================
 create table utilisateur (
-    id uuid primary key default gen_random_uuid(),
+    id uuid primary key references auth.users(id) on delete cascade,  
     email text not null unique,
-    mot_de_passe_hash text not null,
     duree_retention_jours int not null,
     taux_horaire float8,                 -- nullable - Avancé
     date_creation timestamp not null default now()
@@ -39,7 +39,11 @@ create table reunion (
     statut_traitement text not null,
     audio_purge boolean not null default false,
     date_purge_audio timestamp,           -- nullable
-    nombre_participants int               -- nullable - visio uniquement
+    nombre_participants int,              -- nullable - visio uniquement
+    audio_url text,                       -- lien vers le fichier stocké (ex: Supabase Storage)
+    audio_nom_fichier text,               -- nom original du fichier
+    audio_taille_octets bigint,           -- taille en octets
+    audio_mime_type text                  -- ex: 'audio/mpeg', 'audio/wav'
 );
 
 -- ============================================================
