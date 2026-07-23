@@ -24,6 +24,10 @@ TYPES_AUDIO_AUTORISES = (
 TAILLE_MAX_OCTETS = settings.max_upload_mb * 1024 * 1024
 
 
+def reunion_introuvable() -> HTTPException:
+    return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="reunion introuvable")
+
+
 @router.post("/import", status_code=status.HTTP_202_ACCEPTED)
 async def import_meeting(
     background_tasks: BackgroundTasks,
@@ -70,7 +74,7 @@ def get_meeting(
 ):
     detail = repository.get_meeting_detail(meeting_id, user_id)
     if detail is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="reunion introuvable")
+        raise reunion_introuvable()
     return detail
 
 
@@ -81,5 +85,5 @@ def delete_meeting(
     repository: Repository = Depends(get_repository),
 ):
     if not repository.delete_meeting(meeting_id, user_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="reunion introuvable")
+        raise reunion_introuvable()
     return None
