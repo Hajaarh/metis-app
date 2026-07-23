@@ -1,4 +1,4 @@
-# scribe-app
+# metis-app
 
 Maquette Streamlit de transcription de réunions (Gladia).
 
