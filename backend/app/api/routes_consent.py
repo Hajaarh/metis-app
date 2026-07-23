@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.api.routes_meetings import reunion_introuvable
 from app.core.deps import get_repository
 from app.core.security import get_current_user_id
 from app.db.repository import Repository
@@ -14,7 +15,7 @@ def create_consent(
     repository: Repository = Depends(get_repository),
 ):
     if repository.get_meeting(meeting_id, user_id) is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="reunion introuvable")
+        raise reunion_introuvable()
     if repository.has_attestation(meeting_id):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="attestation deja enregistree")
     return repository.save_attestation(meeting_id, user_id)
