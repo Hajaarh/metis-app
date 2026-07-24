@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import routes_auth, routes_consent, routes_dashboard, routes_meetings
+from app.api import routes_auth, routes_dashboard, routes_meetings
 
 app = FastAPI(title="Scribe API", version="0.1.0")
 
@@ -15,7 +15,6 @@ app.add_middleware(
 
 app.include_router(routes_auth.router)
 app.include_router(routes_meetings.router)
-app.include_router(routes_consent.router)
 app.include_router(routes_dashboard.router)
 
 
