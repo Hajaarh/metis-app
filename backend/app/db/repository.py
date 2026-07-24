@@ -100,6 +100,7 @@ class Repository:
         self.client.table(models.TABLE_SEGMENT).insert(lignes_segments).execute()
 
     def save_intelligence(self, reunion_id: str, intelligence: MeetingIntelligence, modele_utilise: str) -> None:
+        version = self._replace_compte_rendu(reunion_id)
         compte_rendu = (
             self.client.table(models.TABLE_COMPTE_RENDU)
             .insert(
@@ -107,6 +108,7 @@ class Repository:
                     "reunion_id": reunion_id,
                     "resume": intelligence.summary,
                     "modele_utilise": modele_utilise,
+                    "version": version,
                 }
             )
             .execute()
@@ -116,8 +118,22 @@ class Repository:
         self.save_ordered(models.TABLE_DECISION, compte_rendu_id, intelligence.decisions)
         self.save_actions(compte_rendu_id, intelligence.actions)
         self._update_meeting(reunion_id, {"type_reunion": intelligence.meeting_type})
+        self.client.table(models.TABLE_REUNION_THEME).delete().eq("reunion_id", reunion_id).execute()
         for nom in dict.fromkeys(intelligence.themes):
             self.link_theme(reunion_id, nom)
+
+    def _replace_compte_rendu(self, reunion_id: str) -> int:
+        existant = (
+            self.client.table(models.TABLE_COMPTE_RENDU)
+            .select("id, version")
+            .eq("reunion_id", reunion_id)
+            .execute()
+        )
+        if not existant.data:
+            return 1
+        compte_rendu_existant = existant.data[0]
+        self.client.table(models.TABLE_COMPTE_RENDU).delete().eq("id", compte_rendu_existant["id"]).execute()
+        return compte_rendu_existant["version"] + 1
 
     def save_ordered(self, table: str, compte_rendu_id: str, contenus: list) -> None:
         if not contenus:
