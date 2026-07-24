@@ -51,7 +51,13 @@ async def import_meeting(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="consentement organisateur et client obligatoires"
         )
-    meeting_id = repository.create_meeting(user_id, file.filename)
+    meeting_id = repository.create_meeting(
+        user_id,
+        file.filename,
+        audio_nom_fichier=file.filename,
+        audio_taille_octets=len(audio_file),
+        audio_mime_type=file.content_type,
+    )
     repository.save_attestation(meeting_id, user_id)
     repository.save_participant_consent(meeting_id, accepte=True)
     background_tasks.add_task(pipeline.run, meeting_id, audio_file, file.filename)

@@ -33,7 +33,14 @@ class Repository:
         reponse = self.client.table(models.TABLE_UTILISATEUR).insert(ligne).execute()
         return reponse.data[0]
 
-    def create_meeting(self, user_id: str, titre: str) -> str:
+    def create_meeting(
+        self,
+        user_id: str,
+        titre: str,
+        audio_nom_fichier: str,
+        audio_taille_octets: int,
+        audio_mime_type: str,
+    ) -> str:
         ligne = {
             "utilisateur_id": user_id,
             "mode": models.MODE_DICTAPHONE,
@@ -42,6 +49,9 @@ class Repository:
             "base_legale": models.BASE_LEGALE_CONSENTEMENT,
             "statut_traitement": models.STATUT_EN_ATTENTE,
             "audio_purge": False,
+            "audio_nom_fichier": audio_nom_fichier,
+            "audio_taille_octets": audio_taille_octets,
+            "audio_mime_type": audio_mime_type,
         }
         reponse = self.client.table(models.TABLE_REUNION).insert(ligne).execute()
         return reponse.data[0]["id"]
@@ -51,6 +61,9 @@ class Repository:
 
     def set_meeting_status(self, reunion_id: str, statut: str) -> None:
         self._update_meeting(reunion_id, {"statut_traitement": statut})
+
+    def set_meeting_duration(self, reunion_id: str, duree_secondes: int) -> None:
+        self._update_meeting(reunion_id, {"duree_secondes": duree_secondes})
 
     def save_attestation(self, reunion_id: str, user_id: str) -> dict:
         ligne = {
@@ -100,6 +113,7 @@ class Repository:
         self.client.table(models.TABLE_SEGMENT).insert(lignes_segments).execute()
 
     def save_intelligence(self, reunion_id: str, intelligence: MeetingIntelligence, modele_utilise: str) -> None:
+        version = self._replace_compte_rendu(reunion_id)
         compte_rendu = (
             self.client.table(models.TABLE_COMPTE_RENDU)
             .insert(
@@ -107,6 +121,7 @@ class Repository:
                     "reunion_id": reunion_id,
                     "resume": intelligence.summary,
                     "modele_utilise": modele_utilise,
+                    "version": version,
                 }
             )
             .execute()
@@ -116,8 +131,22 @@ class Repository:
         self.save_ordered(models.TABLE_DECISION, compte_rendu_id, intelligence.decisions)
         self.save_actions(compte_rendu_id, intelligence.actions)
         self._update_meeting(reunion_id, {"type_reunion": intelligence.meeting_type})
+        self.client.table(models.TABLE_REUNION_THEME).delete().eq("reunion_id", reunion_id).execute()
         for nom in dict.fromkeys(intelligence.themes):
             self.link_theme(reunion_id, nom)
+
+    def _replace_compte_rendu(self, reunion_id: str) -> int:
+        existant = (
+            self.client.table(models.TABLE_COMPTE_RENDU)
+            .select("id, version")
+            .eq("reunion_id", reunion_id)
+            .execute()
+        )
+        if not existant.data:
+            return 1
+        compte_rendu_existant = existant.data[0]
+        self.client.table(models.TABLE_COMPTE_RENDU).delete().eq("id", compte_rendu_existant["id"]).execute()
+        return compte_rendu_existant["version"] + 1
 
     def save_ordered(self, table: str, compte_rendu_id: str, contenus: list) -> None:
         if not contenus:

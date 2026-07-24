@@ -1,4 +1,5 @@
 from app.contracts.meeting_intelligence import MeetingIntelligence
+from app.contracts.transcript import Transcript
 from app.db import models
 from app.db.repository import Repository
 from app.providers.llm.base import LLMProvider
@@ -7,6 +8,12 @@ from app.providers.transcription.base import TranscriptionProvider
 
 class AttestationManquanteError(Exception):
     pass
+
+
+def duree_totale(transcript: Transcript) -> int | None:
+    if not transcript.segments:
+        return None
+    return round(max(segment.end_time for segment in transcript.segments))
 
 
 class MeetingPipeline:
@@ -30,6 +37,9 @@ class MeetingPipeline:
             self.repository.set_meeting_status(reunion_id, models.STATUT_TRANSCRIPTION)
             transcript = await self.transcription_provider.transcribe(reunion_id, audio_file, file_name)
             self.repository.save_transcript(transcript)
+            duree = duree_totale(transcript)
+            if duree is not None:
+                self.repository.set_meeting_duration(reunion_id, duree)
 
             self.repository.set_meeting_status(reunion_id, models.STATUT_ANALYSE)
             intelligence = await self.llm_provider.generate_intelligence(transcript)
