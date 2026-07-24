@@ -18,23 +18,3 @@ class MeetingTypeClassifier:
             )
         self._client = Mistral(api_key=key)
 
-    def classify(self, transcript: str) -> MeetingType:
-        response = self._client.chat.complete(
-            model=MISTRAL_MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": MEETING_CLASSIFICATION_PROMPT,
-                },
-                {"role": "user", "content": transcript},
-            ],
-        )
-        raw_type = response.choices[0].message.content.strip()
-        return self._to_meeting_type(raw_type)
-
-    @staticmethod
-    def _to_meeting_type(raw_type: str) -> MeetingType:
-        try:
-            return MeetingType(raw_type.lower())
-        except ValueError:
-            return MeetingType.NON_DETERMINE
