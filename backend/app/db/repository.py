@@ -33,7 +33,14 @@ class Repository:
         reponse = self.client.table(models.TABLE_UTILISATEUR).insert(ligne).execute()
         return reponse.data[0]
 
-    def create_meeting(self, user_id: str, titre: str) -> str:
+    def create_meeting(
+        self,
+        user_id: str,
+        titre: str,
+        audio_nom_fichier: str,
+        audio_taille_octets: int,
+        audio_mime_type: str,
+    ) -> str:
         ligne = {
             "utilisateur_id": user_id,
             "mode": models.MODE_DICTAPHONE,
@@ -42,6 +49,9 @@ class Repository:
             "base_legale": models.BASE_LEGALE_CONSENTEMENT,
             "statut_traitement": models.STATUT_EN_ATTENTE,
             "audio_purge": False,
+            "audio_nom_fichier": audio_nom_fichier,
+            "audio_taille_octets": audio_taille_octets,
+            "audio_mime_type": audio_mime_type,
         }
         reponse = self.client.table(models.TABLE_REUNION).insert(ligne).execute()
         return reponse.data[0]["id"]
@@ -51,6 +61,9 @@ class Repository:
 
     def set_meeting_status(self, reunion_id: str, statut: str) -> None:
         self._update_meeting(reunion_id, {"statut_traitement": statut})
+
+    def set_meeting_duration(self, reunion_id: str, duree_secondes: int) -> None:
+        self._update_meeting(reunion_id, {"duree_secondes": duree_secondes})
 
     def save_attestation(self, reunion_id: str, user_id: str) -> dict:
         ligne = {
