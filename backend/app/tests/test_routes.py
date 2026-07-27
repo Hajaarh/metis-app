@@ -55,6 +55,8 @@ class FakeRepository:
     def __init__(self):
         self.reunions = {}
         self.compteur = 0
+        self.attestations = []
+        self.consentements = []
 
     def create_meeting(self, user_id, titre, audio_nom_fichier, audio_taille_octets, audio_mime_type):
         self.compteur += 1
@@ -71,10 +73,10 @@ class FakeRepository:
         return meeting_id
 
     def save_attestation(self, reunion_id, user_id):
-        pass
+        self.attestations.append((reunion_id, user_id))
 
     def save_participant_consent(self, reunion_id, accepte):
-        pass
+        self.consentements.append((reunion_id, accepte))
 
     def list_meetings(self, user_id):
         return [reunion for reunion in self.reunions.values() if reunion["utilisateur_id"] == user_id]
@@ -183,22 +185,35 @@ def test_login_identifiants_invalides(client):
     assert reponse.status_code == 401
 
 
-def test_import_meeting_cree_une_reunion(client, fake_repository, fake_pipeline):
-    reponse = importer_reunion(client)
-    assert reponse.status_code == 202
-    meeting_id = reponse.json()["meeting_id"]
-    assert fake_repository.reunions[meeting_id]["audio_mime_type"] == "audio/wav"
-    assert fake_pipeline.appels == [(meeting_id, "reunion.wav")]
-
-
 def test_import_meeting_format_non_supporte(client):
     reponse = importer_reunion(client, content_type="text/plain")
     assert reponse.status_code == 415
 
 
-def test_import_meeting_sans_consentement(client):
+def test_import_refus_organisateur(client, fake_repository):
     reponse = importer_reunion(client, consentement_organisateur=False)
     assert reponse.status_code == 403
+    assert fake_repository.reunions == {}
+    assert fake_repository.attestations == []
+    assert fake_repository.consentements == []
+
+
+def test_import_refus_client(client, fake_repository):
+    reponse = importer_reunion(client, consentement_client=False)
+    assert reponse.status_code == 403
+    assert fake_repository.reunions == {}
+    assert fake_repository.attestations == []
+    assert fake_repository.consentements == []
+
+
+def test_import_double_accord(client, fake_repository, fake_pipeline):
+    reponse = importer_reunion(client, consentement_organisateur=True, consentement_client=True)
+    assert reponse.status_code == 202
+    meeting_id = reponse.json()["meeting_id"]
+    assert fake_repository.reunions[meeting_id]["audio_mime_type"] == "audio/wav"
+    assert fake_repository.attestations == [(meeting_id, USER_ID)]
+    assert fake_repository.consentements == [(meeting_id, True)]
+    assert fake_pipeline.appels == [(meeting_id, "reunion.wav")]
 
 
 def test_list_meetings(client):
