@@ -112,6 +112,22 @@ class FakeRepository:
     def create_user_profile(self, user_id, email, duree_retention_jours):
         pass
 
+    def get_user_profile(self, user_id):
+        return {"id": user_id, "email": "test@test.fr", "duree_retention_jours": 30}
+
+    def export_user_data(self, user_id):
+        return {
+            "utilisateur": self.get_user_profile(user_id),
+            "reunions": [self.get_meeting_detail(reunion["id"], user_id) for reunion in self.list_meetings(user_id)],
+        }
+
+    def delete_user_account(self, user_id):
+        ids_a_supprimer = [
+            reunion_id for reunion_id, reunion in self.reunions.items() if reunion["utilisateur_id"] == user_id
+        ]
+        for reunion_id in ids_a_supprimer:
+            del self.reunions[reunion_id]
+
 
 class FakePipeline:
     def __init__(self):
@@ -258,3 +274,26 @@ def test_dashboard_metrics(client):
 def test_route_consent_supprimee(client):
     reponse = client.post("/meetings/introuvable/consent")
     assert reponse.status_code == 404
+
+
+def test_export_donnees_compte(client):
+    importer_reunion(client)
+    reponse = client.get("/account/data")
+    assert reponse.status_code == 200
+    corps = reponse.json()
+    assert corps["utilisateur"]["id"] == USER_ID
+    assert len(corps["reunions"]) == 1
+
+
+def test_export_donnees_compte_vide(client):
+    reponse = client.get("/account/data")
+    assert reponse.status_code == 200
+    assert reponse.json()["reunions"] == []
+
+
+def test_suppression_compte_efface_les_reunions(client, fake_repository):
+    importer_reunion(client)
+    reponse = client.delete("/account")
+    assert reponse.status_code == 204
+    assert fake_repository.reunions == {}
+    assert client.get("/meetings").json() == []
