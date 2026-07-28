@@ -25,9 +25,18 @@ class Reponse:
         self.session = session
 
 
+class FakeSupabaseAdmin:
+    def __init__(self):
+        self.utilisateurs_supprimes = []
+
+    def delete_user(self, user_id):
+        self.utilisateurs_supprimes.append(user_id)
+
+
 class FakeSupabaseAuth:
     def __init__(self):
         self.mots_de_passe = {}
+        self.admin = FakeSupabaseAdmin()
 
     def sign_up(self, identifiants):
         email = identifiants["email"]
@@ -297,3 +306,8 @@ def test_suppression_compte_efface_les_reunions(client, fake_repository):
     assert reponse.status_code == 204
     assert fake_repository.reunions == {}
     assert client.get("/meetings").json() == []
+
+
+def test_suppression_compte_supprime_l_acces_auth(client, fake_supabase_client):
+    client.delete("/account")
+    assert fake_supabase_client.auth.admin.utilisateurs_supprimes == [USER_ID]
