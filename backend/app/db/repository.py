@@ -33,6 +33,24 @@ class Repository:
         reponse = self.client.table(models.TABLE_UTILISATEUR).insert(ligne).execute()
         return reponse.data[0]
 
+    def get_user_profile(self, user_id: str) -> dict | None:
+        reponse = self.client.table(models.TABLE_UTILISATEUR).select("*").eq("id", user_id).execute()
+        return reponse.data[0] if reponse.data else None
+
+    def export_user_data(self, user_id: str) -> dict:
+        reunions = (
+            self.client.table(models.TABLE_REUNION).select("id").eq("utilisateur_id", user_id).execute()
+        )
+        return {
+            "utilisateur": self.get_user_profile(user_id),
+            "reunions": [
+                self.get_meeting_detail(reunion["id"], user_id) for reunion in reunions.data
+            ],
+        }
+
+    def delete_user_account(self, user_id: str) -> None:
+        self.client.table(models.TABLE_UTILISATEUR).delete().eq("id", user_id).execute()
+
     def create_meeting(
         self,
         user_id: str,
