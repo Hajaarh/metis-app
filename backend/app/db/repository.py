@@ -51,14 +51,7 @@ class Repository:
     def delete_user_account(self, user_id: str) -> None:
         self.client.table(models.TABLE_UTILISATEUR).delete().eq("id", user_id).execute()
 
-    def create_meeting(
-        self,
-        user_id: str,
-        titre: str,
-        audio_nom_fichier: str,
-        audio_taille_octets: int,
-        audio_mime_type: str,
-    ) -> str:
+    def create_meeting(self, user_id: str, titre: str) -> str:
         ligne = {
             "utilisateur_id": user_id,
             "mode": models.MODE_DICTAPHONE,
@@ -67,9 +60,6 @@ class Repository:
             "base_legale": models.BASE_LEGALE_CONSENTEMENT,
             "statut_traitement": models.STATUT_EN_ATTENTE,
             "audio_purge": False,
-            "audio_nom_fichier": audio_nom_fichier,
-            "audio_taille_octets": audio_taille_octets,
-            "audio_mime_type": audio_mime_type,
         }
         reponse = self.client.table(models.TABLE_REUNION).insert(ligne).execute()
         return reponse.data[0]["id"]
@@ -83,6 +73,18 @@ class Repository:
     def set_meeting_duration(self, reunion_id: str, duree_secondes: int) -> None:
         self._update_meeting(reunion_id, {"duree_secondes": duree_secondes})
 
+    def set_audio_metadata(
+        self, reunion_id: str, audio_nom_fichier: str, audio_taille_octets: int, audio_mime_type: str
+    ) -> None:
+        self._update_meeting(
+            reunion_id,
+            {
+                "audio_nom_fichier": audio_nom_fichier,
+                "audio_taille_octets": audio_taille_octets,
+                "audio_mime_type": audio_mime_type,
+            },
+        )
+
     def save_attestation(self, reunion_id: str, user_id: str) -> dict:
         ligne = {
             "reunion_id": reunion_id,
@@ -92,16 +94,39 @@ class Repository:
         reponse = self.client.table(models.TABLE_ATTESTATION).insert(ligne).execute()
         return reponse.data[0]
 
-    def save_participant_consent(self, reunion_id: str, accepte: bool) -> dict:
+    def create_consent_link(self, reunion_id: str) -> str:
         import uuid
 
+        jeton = str(uuid.uuid4())
         ligne = {
             "reunion_id": reunion_id,
-            "jeton": str(uuid.uuid4()),
-            "choix": "accepte" if accepte else "refuse",
+            "jeton": jeton,
+            "choix": models.CHOIX_EN_ATTENTE,
         }
-        reponse = self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT).insert(ligne).execute()
-        return reponse.data[0]
+        self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT).insert(ligne).execute()
+        return jeton
+
+    def submit_participant_consent(self, jeton: str, accepte: bool) -> bool:
+        existant = (
+            self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT).select("id").eq("jeton", jeton).execute()
+        )
+        if not existant.data:
+            return False
+        choix = models.CHOIX_ACCEPTE if accepte else models.CHOIX_REFUSE
+        self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT).update({"choix": choix}).eq(
+            "jeton", jeton
+        ).execute()
+        return True
+
+    def has_refused_consent(self, reunion_id: str) -> bool:
+        reponse = (
+            self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT)
+            .select("id")
+            .eq("reunion_id", reunion_id)
+            .eq("choix", models.CHOIX_REFUSE)
+            .execute()
+        )
+        return len(reponse.data) > 0
 
     def has_attestation(self, reunion_id: str) -> bool:
         reponse = (
