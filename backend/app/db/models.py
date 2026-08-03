@@ -22,3 +22,8 @@ STATUT_ANALYSE = "analyse"
 STATUT_TERMINE = "termine"
 STATUT_ERREUR = "erreur"
 STATUT_ATTESTATION_MANQUANTE = "attestation_manquante"
+STATUT_CONSENTEMENT_REFUSE = "consentement_refuse"
+
+CHOIX_EN_ATTENTE = "en_attente"
+CHOIX_ACCEPTE = "accepte"
+CHOIX_REFUSE = "refuse"
