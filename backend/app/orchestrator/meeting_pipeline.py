@@ -55,6 +55,6 @@ class MeetingPipeline:
             self.repository.log_audio_purge(reunion_id)
             self.repository.set_meeting_status(reunion_id, models.STATUT_TERMINE)
             return intelligence
-        except Exception:
-            self.repository.set_meeting_status(reunion_id, models.STATUT_ERREUR)
+        except Exception as exception:
+            self.repository.set_meeting_error(reunion_id, str(exception))
             raise
