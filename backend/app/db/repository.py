@@ -266,7 +266,7 @@ class Repository:
     def dashboard_metrics(self, user_id: str) -> dict:
         reunions = (
             self.client.table(models.TABLE_REUNION)
-            .select("id, statut_traitement")
+            .select("id, statut_traitement, duree_secondes, type_reunion")
             .eq("utilisateur_id", user_id)
             .execute()
         )
@@ -276,7 +276,39 @@ class Repository:
             "nombre_reunions": len(reunions.data),
             "nombre_reunions_terminees": len(terminees),
             "nombre_actions": self.count_actions(reunion_ids),
+            "duree_totale_secondes": self.duree_totale(reunions.data),
+            "repartition_par_type": self.repartition_par_type(reunions.data),
+            "repartition_par_theme": self.repartition_par_theme(reunion_ids),
         }
+
+    def duree_totale(self, reunions: list) -> int:
+        return sum(ligne["duree_secondes"] for ligne in reunions if ligne["duree_secondes"] is not None)
+
+    def repartition_par_type(self, reunions: list) -> dict:
+        repartition = {}
+        for ligne in reunions:
+            type_reunion = ligne["type_reunion"]
+            if type_reunion is None:
+                continue
+            repartition[type_reunion] = repartition.get(type_reunion, 0) + 1
+        return repartition
+
+    def repartition_par_theme(self, reunion_ids: list) -> dict:
+        if not reunion_ids:
+            return {}
+        liaisons = (
+            self.client.table(models.TABLE_REUNION_THEME).select("theme_id").in_("reunion_id", reunion_ids).execute()
+        )
+        theme_ids = [ligne["theme_id"] for ligne in liaisons.data]
+        if not theme_ids:
+            return {}
+        themes = self.client.table(models.TABLE_THEME).select("id, nom").in_("id", theme_ids).execute()
+        noms = {ligne["id"]: ligne["nom"] for ligne in themes.data}
+        repartition = {}
+        for theme_id in theme_ids:
+            nom = noms[theme_id]
+            repartition[nom] = repartition.get(nom, 0) + 1
+        return repartition
 
     def count_actions(self, reunion_ids: list) -> int:
         if not reunion_ids:
