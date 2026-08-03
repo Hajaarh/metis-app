@@ -1,5 +1,6 @@
 from app.contracts.transcript import Segment, Transcript
 from app.contracts.meeting_intelligence import ActionItem
+from app.db import models
 from app.db.repository import Repository
 
 
@@ -8,36 +9,67 @@ class FakeReponse:
         self.data = data
 
 
-class FakeTableInsertOnly:
-    def __init__(self):
-        self.compteur = 0
-        self.dernieres_lignes = []
+class FakeRequete:
+    def __init__(self, lignes):
+        self.lignes = lignes
+        self.filtres = []
 
-    def insert(self, payload):
-        lignes = payload if isinstance(payload, list) else [payload]
-        inserees = []
-        for ligne in lignes:
-            self.compteur += 1
-            inserees.append({"id": str(self.compteur), **ligne})
-        self.dernieres_lignes = inserees
+    def select(self, colonnes="*"):
+        return self
+
+    def eq(self, colonne, valeur):
+        self.filtres.append(lambda ligne: ligne.get(colonne) == valeur)
+        return self
+
+    def in_(self, colonne, valeurs):
+        self.filtres.append(lambda ligne: ligne.get(colonne) in valeurs)
         return self
 
     def execute(self):
-        return FakeReponse(self.dernieres_lignes)
+        resultat = [ligne for ligne in self.lignes if all(filtre(ligne) for filtre in self.filtres)]
+        return FakeReponse(resultat)
 
 
-class FakeSupabaseInsertOnly:
+class FakeTable:
+    def __init__(self):
+        self.lignes = []
+        self.compteur = 0
+        self.dernieres_lignes = []
+
+    def seed(self, lignes):
+        for ligne in lignes:
+            if "id" not in ligne:
+                self.compteur += 1
+                ligne = {"id": str(self.compteur), **ligne}
+            self.lignes.append(ligne)
+
+    def insert(self, payload):
+        a_inserer = payload if isinstance(payload, list) else [payload]
+        inserees = []
+        for ligne in a_inserer:
+            self.compteur += 1
+            nouvelle = {"id": str(self.compteur), **ligne}
+            self.lignes.append(nouvelle)
+            inserees.append(nouvelle)
+        self.dernieres_lignes = inserees
+        return FakeRequete(inserees)
+
+    def select(self, colonnes="*"):
+        return FakeRequete(list(self.lignes))
+
+
+class FakeSupabase:
     def __init__(self):
         self.tables = {}
 
     def table(self, nom):
         if nom not in self.tables:
-            self.tables[nom] = FakeTableInsertOnly()
+            self.tables[nom] = FakeTable()
         return self.tables[nom]
 
 
 def repository():
-    return Repository(client=FakeSupabaseInsertOnly())
+    return Repository(client=FakeSupabase())
 
 
 def test_save_actions_conserve_responsable_et_echeance_absents():
@@ -125,3 +157,67 @@ def test_save_transcript_conserve_texte_normal_inchange():
     ligne = repo.client.tables["segment"].dernieres_lignes[0]
     assert ligne["texte"] == "on livre vendredi"
     assert ligne["inaudible"] is False
+
+
+def test_dashboard_metrics_sans_aucune_reunion():
+    repo = repository()
+    metrics = repo.dashboard_metrics("u1")
+    assert metrics == {
+        "nombre_reunions": 0,
+        "nombre_reunions_terminees": 0,
+        "nombre_actions": 0,
+        "duree_totale_secondes": 0,
+        "repartition_par_type": {},
+        "repartition_par_theme": {},
+    }
+
+
+def test_dashboard_metrics_duree_totale():
+    repo = repository()
+    repo.client.table(models.TABLE_REUNION).seed(
+        [
+            {"id": "r1", "utilisateur_id": "u1", "statut_traitement": "termine", "duree_secondes": 120, "type_reunion": "interne"},
+            {"id": "r2", "utilisateur_id": "u1", "statut_traitement": "en_attente", "duree_secondes": 300, "type_reunion": None},
+            {"id": "r3", "utilisateur_id": "autre", "statut_traitement": "termine", "duree_secondes": 999, "type_reunion": "client"},
+        ]
+    )
+    metrics = repo.dashboard_metrics("u1")
+    assert metrics["duree_totale_secondes"] == 420
+
+
+def test_dashboard_metrics_repartition_par_type():
+    repo = repository()
+    repo.client.table(models.TABLE_REUNION).seed(
+        [
+            {"id": "r1", "utilisateur_id": "u1", "statut_traitement": "termine", "duree_secondes": 100, "type_reunion": "interne"},
+            {"id": "r2", "utilisateur_id": "u1", "statut_traitement": "termine", "duree_secondes": 100, "type_reunion": "interne"},
+            {"id": "r3", "utilisateur_id": "u1", "statut_traitement": "en_attente", "duree_secondes": None, "type_reunion": None},
+        ]
+    )
+    metrics = repo.dashboard_metrics("u1")
+    assert metrics["repartition_par_type"] == {"interne": 2}
+
+
+def test_dashboard_metrics_repartition_par_theme():
+    repo = repository()
+    repo.client.table(models.TABLE_REUNION).seed(
+        [
+            {"id": "r1", "utilisateur_id": "u1", "statut_traitement": "termine", "duree_secondes": 100, "type_reunion": "interne"},
+            {"id": "r2", "utilisateur_id": "u1", "statut_traitement": "termine", "duree_secondes": 100, "type_reunion": "interne"},
+        ]
+    )
+    repo.client.table(models.TABLE_THEME).seed(
+        [
+            {"id": "t1", "nom": "budget"},
+            {"id": "t2", "nom": "recrutement"},
+        ]
+    )
+    repo.client.table(models.TABLE_REUNION_THEME).seed(
+        [
+            {"id": "rt1", "reunion_id": "r1", "theme_id": "t1"},
+            {"id": "rt2", "reunion_id": "r2", "theme_id": "t1"},
+            {"id": "rt3", "reunion_id": "r2", "theme_id": "t2"},
+        ]
+    )
+    metrics = repo.dashboard_metrics("u1")
+    assert metrics["repartition_par_theme"] == {"budget": 2, "recrutement": 1}
