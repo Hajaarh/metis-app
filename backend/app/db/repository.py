@@ -73,6 +73,11 @@ class Repository:
     def set_meeting_duration(self, reunion_id: str, duree_secondes: int) -> None:
         self._update_meeting(reunion_id, {"duree_secondes": duree_secondes})
 
+    def set_meeting_error(self, reunion_id: str, message_erreur: str) -> None:
+        self._update_meeting(
+            reunion_id, {"statut_traitement": models.STATUT_ERREUR, "message_erreur": message_erreur}
+        )
+
     def set_audio_metadata(
         self, reunion_id: str, audio_nom_fichier: str, audio_taille_octets: int, audio_mime_type: str
     ) -> None:

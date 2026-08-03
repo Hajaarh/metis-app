@@ -303,3 +303,12 @@ def test_has_refused_consent_faux_si_en_attente_ou_accepte():
     meeting_id = repo.create_meeting("u1", "reunion test")
     repo.create_consent_link(meeting_id)
     assert repo.has_refused_consent(meeting_id) is False
+
+
+def test_set_meeting_error_enregistre_statut_et_message():
+    repo = repository()
+    meeting_id = repo.create_meeting("u1", "reunion test")
+    repo.set_meeting_error(meeting_id, "gladia indisponible")
+    ligne = repo.client.tables[models.TABLE_REUNION].lignes[0]
+    assert ligne["statut_traitement"] == models.STATUT_ERREUR
+    assert ligne["message_erreur"] == "gladia indisponible"
