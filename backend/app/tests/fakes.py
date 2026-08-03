@@ -29,12 +29,15 @@ class FakeTranscriptionProvider(TranscriptionProvider):
 
 
 class FakeLLMProvider(LLMProvider):
-    def __init__(self, intelligence: MeetingIntelligence | None = None):
+    def __init__(self, intelligence: MeetingIntelligence | None = None, erreur: Exception | None = None):
         self.intelligence = intelligence
+        self.erreur = erreur
         self.appels = []
 
     async def generate_intelligence(self, transcript: Transcript) -> MeetingIntelligence:
         self.appels.append(transcript.meeting_id)
+        if self.erreur is not None:
+            raise self.erreur
         if self.intelligence is not None:
             return self.intelligence
         return MeetingIntelligence(

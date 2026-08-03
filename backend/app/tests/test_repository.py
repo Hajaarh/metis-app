@@ -27,6 +27,10 @@ class FakeRequete:
         self.filtres.append(lambda ligne: ligne.get(colonne) in valeurs)
         return self
 
+    def order(self, colonne, desc=False):
+        self.lignes = sorted(self.lignes, key=lambda ligne: ligne.get(colonne), reverse=desc)
+        return self
+
     def execute(self):
         resultat = [ligne for ligne in self.lignes if all(filtre(ligne) for filtre in self.filtres)]
         if self.action == "update":
@@ -43,6 +47,7 @@ class FakeTable:
         self.lignes = []
         self.compteur = 0
         self.dernieres_lignes = []
+        self.historique_maj = []
 
     def seed(self, lignes):
         for ligne in lignes:
@@ -66,6 +71,7 @@ class FakeTable:
         return FakeRequete(list(self.lignes))
 
     def update(self, payload):
+        self.historique_maj.append(dict(payload))
         return FakeRequete(self.lignes, action="update", payload=payload)
 
     def delete(self):
