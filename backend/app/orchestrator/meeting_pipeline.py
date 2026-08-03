@@ -10,6 +10,10 @@ class AttestationManquanteError(Exception):
     pass
 
 
+class ConsentementRefuseError(Exception):
+    pass
+
+
 def duree_totale(transcript: Transcript) -> int | None:
     if not transcript.segments:
         return None
@@ -33,6 +37,9 @@ class MeetingPipeline:
         if not self.repository.has_attestation(reunion_id):
             self.repository.set_meeting_status(reunion_id, models.STATUT_ATTESTATION_MANQUANTE)
             raise AttestationManquanteError(reunion_id)
+        if self.repository.has_refused_consent(reunion_id):
+            self.repository.set_meeting_status(reunion_id, models.STATUT_CONSENTEMENT_REFUSE)
+            raise ConsentementRefuseError(reunion_id)
         try:
             self.repository.set_meeting_status(reunion_id, models.STATUT_TRANSCRIPTION)
             transcript = await self.transcription_provider.transcribe(reunion_id, audio_file, file_name)

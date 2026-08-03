@@ -1,4 +1,5 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
+from pydantic import BaseModel
 
 from app.core.config import settings
 from app.core.deps import get_pipeline, get_repository
@@ -7,6 +8,10 @@ from app.db.repository import Repository
 from app.orchestrator.meeting_pipeline import MeetingPipeline
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
+
+
+class NouvelleReunion(BaseModel):
+    titre: str
 
 TYPES_AUDIO_AUTORISES = (
     "audio/wav",
@@ -28,16 +33,29 @@ def reunion_introuvable() -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="reunion introuvable")
 
 
-@router.post("/import", status_code=status.HTTP_202_ACCEPTED)
-async def import_meeting(
+@router.post("", status_code=status.HTTP_201_CREATED)
+def create_meeting(
+    nouvelle_reunion: NouvelleReunion,
+    user_id: str = Depends(get_current_user_id),
+    repository: Repository = Depends(get_repository),
+):
+    meeting_id = repository.create_meeting(user_id, nouvelle_reunion.titre)
+    jeton = repository.create_consent_link(meeting_id)
+    return {"meeting_id": meeting_id, "jeton_consentement": jeton}
+
+
+@router.post("/{meeting_id}/audio", status_code=status.HTTP_202_ACCEPTED)
+async def upload_audio(
+    meeting_id: str,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     consentement_organisateur: bool = Form(...),
-    consentement_client: bool = Form(...),
     user_id: str = Depends(get_current_user_id),
     repository: Repository = Depends(get_repository),
     pipeline: MeetingPipeline = Depends(get_pipeline),
 ):
+    if repository.get_meeting(meeting_id, user_id) is None:
+        raise reunion_introuvable()
     if file.content_type not in TYPES_AUDIO_AUTORISES:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="format audio non supporte"
@@ -47,19 +65,12 @@ async def import_meeting(
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="fichier trop volumineux"
         )
-    if not consentement_organisateur or not consentement_client:
+    if not consentement_organisateur:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="consentement organisateur et client obligatoires"
+            status_code=status.HTTP_403_FORBIDDEN, detail="consentement organisateur obligatoire"
         )
-    meeting_id = repository.create_meeting(
-        user_id,
-        file.filename,
-        audio_nom_fichier=file.filename,
-        audio_taille_octets=len(audio_file),
-        audio_mime_type=file.content_type,
-    )
+    repository.set_audio_metadata(meeting_id, file.filename, len(audio_file), file.content_type)
     repository.save_attestation(meeting_id, user_id)
-    repository.save_participant_consent(meeting_id, accepte=True)
     background_tasks.add_task(pipeline.run, meeting_id, audio_file, file.filename)
     return {"meeting_id": meeting_id, "statut": "en_attente"}
 

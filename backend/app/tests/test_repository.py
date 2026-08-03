@@ -10,8 +10,10 @@ class FakeReponse:
 
 
 class FakeRequete:
-    def __init__(self, lignes):
+    def __init__(self, lignes, action="select", payload=None):
         self.lignes = lignes
+        self.action = action
+        self.payload = payload
         self.filtres = []
 
     def select(self, colonnes="*"):
@@ -27,6 +29,12 @@ class FakeRequete:
 
     def execute(self):
         resultat = [ligne for ligne in self.lignes if all(filtre(ligne) for filtre in self.filtres)]
+        if self.action == "update":
+            for ligne in resultat:
+                ligne.update(self.payload)
+        if self.action == "delete":
+            for ligne in resultat:
+                self.lignes.remove(ligne)
         return FakeReponse(resultat)
 
 
@@ -56,6 +64,12 @@ class FakeTable:
 
     def select(self, colonnes="*"):
         return FakeRequete(list(self.lignes))
+
+    def update(self, payload):
+        return FakeRequete(self.lignes, action="update", payload=payload)
+
+    def delete(self):
+        return FakeRequete(self.lignes, action="delete")
 
 
 class FakeSupabase:
@@ -221,3 +235,71 @@ def test_dashboard_metrics_repartition_par_theme():
     )
     metrics = repo.dashboard_metrics("u1")
     assert metrics["repartition_par_theme"] == {"budget": 2, "recrutement": 1}
+
+
+def test_create_meeting_sans_metadonnees_audio():
+    repo = repository()
+    meeting_id = repo.create_meeting("u1", "reunion test")
+    ligne = repo.client.tables[models.TABLE_REUNION].lignes[0]
+    assert ligne["id"] == meeting_id
+    assert "audio_nom_fichier" not in ligne
+
+
+def test_set_audio_metadata_renseigne_la_reunion():
+    repo = repository()
+    meeting_id = repo.create_meeting("u1", "reunion test")
+    repo.set_audio_metadata(meeting_id, "reunion.wav", 12345, "audio/wav")
+    ligne = repo.client.tables[models.TABLE_REUNION].lignes[0]
+    assert ligne["audio_nom_fichier"] == "reunion.wav"
+    assert ligne["audio_taille_octets"] == 12345
+    assert ligne["audio_mime_type"] == "audio/wav"
+
+
+def test_create_consent_link_genere_un_jeton_en_attente():
+    repo = repository()
+    meeting_id = repo.create_meeting("u1", "reunion test")
+    jeton = repo.create_consent_link(meeting_id)
+    ligne = repo.client.tables[models.TABLE_CONSENTEMENT_PARTICIPANT].lignes[0]
+    assert ligne["jeton"] == jeton
+    assert ligne["reunion_id"] == meeting_id
+    assert ligne["choix"] == models.CHOIX_EN_ATTENTE
+
+
+def test_submit_participant_consent_accepte():
+    repo = repository()
+    meeting_id = repo.create_meeting("u1", "reunion test")
+    jeton = repo.create_consent_link(meeting_id)
+    resultat = repo.submit_participant_consent(jeton, accepte=True)
+    assert resultat is True
+    ligne = repo.client.tables[models.TABLE_CONSENTEMENT_PARTICIPANT].lignes[0]
+    assert ligne["choix"] == models.CHOIX_ACCEPTE
+
+
+def test_submit_participant_consent_refuse():
+    repo = repository()
+    meeting_id = repo.create_meeting("u1", "reunion test")
+    jeton = repo.create_consent_link(meeting_id)
+    repo.submit_participant_consent(jeton, accepte=False)
+    ligne = repo.client.tables[models.TABLE_CONSENTEMENT_PARTICIPANT].lignes[0]
+    assert ligne["choix"] == models.CHOIX_REFUSE
+
+
+def test_submit_participant_consent_jeton_inconnu():
+    repo = repository()
+    resultat = repo.submit_participant_consent("jeton-bidon", accepte=True)
+    assert resultat is False
+
+
+def test_has_refused_consent_vrai_si_refuse():
+    repo = repository()
+    meeting_id = repo.create_meeting("u1", "reunion test")
+    jeton = repo.create_consent_link(meeting_id)
+    repo.submit_participant_consent(jeton, accepte=False)
+    assert repo.has_refused_consent(meeting_id) is True
+
+
+def test_has_refused_consent_faux_si_en_attente_ou_accepte():
+    repo = repository()
+    meeting_id = repo.create_meeting("u1", "reunion test")
+    repo.create_consent_link(meeting_id)
+    assert repo.has_refused_consent(meeting_id) is False
