@@ -27,6 +27,11 @@ class FakeRequete:
         self.filtres.append(lambda ligne: ligne.get(colonne) in valeurs)
         return self
 
+    def ilike(self, colonne, motif):
+        motif_nettoye = motif.strip("%").lower()
+        self.filtres.append(lambda ligne: motif_nettoye in str(ligne.get(colonne, "")).lower())
+        return self
+
     def order(self, colonne, desc=False):
         self.lignes = sorted(self.lignes, key=lambda ligne: ligne.get(colonne), reverse=desc)
         return self
@@ -309,3 +314,34 @@ def test_has_refused_consent_faux_si_en_attente_ou_accepte():
     meeting_id = repo.create_meeting("u1", "reunion test")
     repo.create_consent_link(meeting_id)
     assert repo.has_refused_consent(meeting_id) is False
+
+
+def seed_reunions_pour_recherche(repo):
+    repo.client.table(models.TABLE_REUNION).seed(
+        [
+            {"id": "r1", "utilisateur_id": "u1", "titre": "Point budget Q3", "statut_traitement": "termine", "date_debut": "2026-01-01"},
+            {"id": "r2", "utilisateur_id": "u1", "titre": "Recrutement backend", "statut_traitement": "termine", "date_debut": "2026-01-02"},
+            {"id": "r3", "utilisateur_id": "autre", "titre": "Budget marketing", "statut_traitement": "termine", "date_debut": "2026-01-03"},
+        ]
+    )
+
+
+def test_list_meetings_sans_recherche_renvoie_tout():
+    repo = repository()
+    seed_reunions_pour_recherche(repo)
+    resultats = repo.list_meetings("u1")
+    assert {r["id"] for r in resultats} == {"r1", "r2"}
+
+
+def test_list_meetings_recherche_insensible_a_la_casse():
+    repo = repository()
+    seed_reunions_pour_recherche(repo)
+    resultats = repo.list_meetings("u1", recherche="BUDGET")
+    assert [r["id"] for r in resultats] == ["r1"]
+
+
+def test_list_meetings_recherche_sans_resultat():
+    repo = repository()
+    seed_reunions_pour_recherche(repo)
+    resultats = repo.list_meetings("u1", recherche="inexistant")
+    assert resultats == []

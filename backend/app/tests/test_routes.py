@@ -104,8 +104,11 @@ class FakeRepository:
             for consentement in self.consentements.values()
         )
 
-    def list_meetings(self, user_id):
-        return [reunion for reunion in self.reunions.values() if reunion["utilisateur_id"] == user_id]
+    def list_meetings(self, user_id, recherche=None):
+        reunions = [reunion for reunion in self.reunions.values() if reunion["utilisateur_id"] == user_id]
+        if recherche:
+            reunions = [reunion for reunion in reunions if recherche.lower() in reunion["titre"].lower()]
+        return reunions
 
     def get_meeting(self, reunion_id, user_id):
         reunion = self.reunions.get(reunion_id)
@@ -294,6 +297,22 @@ def test_list_meetings(client):
     reponse = client.get("/meetings")
     assert reponse.status_code == 200
     assert len(reponse.json()) == 1
+
+
+def test_list_meetings_avec_recherche(client):
+    creer_reunion(client, titre="Point budget Q3")
+    creer_reunion(client, titre="Recrutement backend")
+    reponse = client.get("/meetings", params={"recherche": "budget"})
+    assert reponse.status_code == 200
+    assert len(reponse.json()) == 1
+    assert reponse.json()[0]["titre"] == "Point budget Q3"
+
+
+def test_list_meetings_recherche_sans_resultat(client):
+    creer_reunion(client, titre="Point budget Q3")
+    reponse = client.get("/meetings", params={"recherche": "inexistant"})
+    assert reponse.status_code == 200
+    assert reponse.json() == []
 
 
 def test_get_meeting_introuvable(client):
