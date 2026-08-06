@@ -110,6 +110,32 @@ def test_pipeline_erreur_a_l_analyse_conserve_la_transcription_deja_enregistree(
     assert comptes_rendus.data == []
 
 
+def test_pipeline_purge_automatiquement_l_audio_apres_le_compte_rendu():
+    pipeline, repository, transcription, llm = build_pipeline()
+    meeting_id = repository.create_meeting("u1", "reunion test")
+    repository.save_attestation(meeting_id, "u1")
+
+    asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
+
+    reunion = repository.get_meeting(meeting_id, "u1")
+    assert reunion["audio_purge"] is True
+    assert reunion["date_purge_audio"] is not None
+
+
+def test_pipeline_ne_purge_pas_si_l_analyse_echoue():
+    llm = FakeLLMProvider(erreur=RuntimeError("mistral indisponible"))
+    pipeline, repository, transcription, llm = build_pipeline(llm=llm)
+    meeting_id = repository.create_meeting("u1", "reunion test")
+    repository.save_attestation(meeting_id, "u1")
+
+    with pytest.raises(RuntimeError):
+        asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
+
+    reunion = repository.get_meeting(meeting_id, "u1")
+    assert reunion["audio_purge"] is False
+    assert reunion.get("date_purge_audio") is None
+
+
 def test_pipeline_enregistre_le_type_de_reunion_classifie():
     intelligence = MeetingIntelligence(
         summary="resume de test",
