@@ -233,14 +233,15 @@ class Repository:
     def log_audio_purge(self, reunion_id: str) -> None:
         self._update_meeting(reunion_id, {"audio_purge": True, "date_purge_audio": now_iso()})
 
-    def list_meetings(self, user_id: str) -> list:
-        reponse = (
+    def list_meetings(self, user_id: str, recherche: str | None = None) -> list:
+        requete = (
             self.client.table(models.TABLE_REUNION)
             .select("id, titre, statut_traitement, date_debut")
             .eq("utilisateur_id", user_id)
-            .order("date_debut", desc=True)
-            .execute()
         )
+        if recherche:
+            requete = requete.ilike("titre", f"%{recherche}%")
+        reponse = requete.order("date_debut", desc=True).execute()
         return reponse.data
 
     def get_meeting(self, reunion_id: str, user_id: str) -> dict | None:

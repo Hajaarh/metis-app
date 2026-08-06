@@ -27,6 +27,15 @@ class FakeRequete:
         self.filtres.append(lambda ligne: ligne.get(colonne) in valeurs)
         return self
 
+    def ilike(self, colonne, motif):
+        motif_nettoye = motif.strip("%").lower()
+        self.filtres.append(lambda ligne: motif_nettoye in str(ligne.get(colonne, "")).lower())
+        return self
+
+    def order(self, colonne, desc=False):
+        self.lignes = sorted(self.lignes, key=lambda ligne: ligne.get(colonne), reverse=desc)
+        return self
+
     def execute(self):
         resultat = [ligne for ligne in self.lignes if all(filtre(ligne) for filtre in self.filtres)]
         if self.action == "update":
@@ -43,6 +52,7 @@ class FakeTable:
         self.lignes = []
         self.compteur = 0
         self.dernieres_lignes = []
+        self.historique_maj = []
 
     def seed(self, lignes):
         for ligne in lignes:
@@ -66,6 +76,7 @@ class FakeTable:
         return FakeRequete(list(self.lignes))
 
     def update(self, payload):
+        self.historique_maj.append(dict(payload))
         return FakeRequete(self.lignes, action="update", payload=payload)
 
     def delete(self):
@@ -312,3 +323,34 @@ def test_set_meeting_error_enregistre_statut_et_message():
     ligne = repo.client.tables[models.TABLE_REUNION].lignes[0]
     assert ligne["statut_traitement"] == models.STATUT_ERREUR
     assert ligne["message_erreur"] == "gladia indisponible"
+
+
+def seed_reunions_pour_recherche(repo):
+    repo.client.table(models.TABLE_REUNION).seed(
+        [
+            {"id": "r1", "utilisateur_id": "u1", "titre": "Point budget Q3", "statut_traitement": "termine", "date_debut": "2026-01-01"},
+            {"id": "r2", "utilisateur_id": "u1", "titre": "Recrutement backend", "statut_traitement": "termine", "date_debut": "2026-01-02"},
+            {"id": "r3", "utilisateur_id": "autre", "titre": "Budget marketing", "statut_traitement": "termine", "date_debut": "2026-01-03"},
+        ]
+    )
+
+
+def test_list_meetings_sans_recherche_renvoie_tout():
+    repo = repository()
+    seed_reunions_pour_recherche(repo)
+    resultats = repo.list_meetings("u1")
+    assert {r["id"] for r in resultats} == {"r1", "r2"}
+
+
+def test_list_meetings_recherche_insensible_a_la_casse():
+    repo = repository()
+    seed_reunions_pour_recherche(repo)
+    resultats = repo.list_meetings("u1", recherche="BUDGET")
+    assert [r["id"] for r in resultats] == ["r1"]
+
+
+def test_list_meetings_recherche_sans_resultat():
+    repo = repository()
+    seed_reunions_pour_recherche(repo)
+    resultats = repo.list_meetings("u1", recherche="inexistant")
+    assert resultats == []

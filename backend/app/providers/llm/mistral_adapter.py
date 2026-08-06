@@ -15,6 +15,13 @@ SYSTEM_PROMPT = (
     "Si une date n'est pas dite, laisse due_date a null. "
     "Tu ne completes pas les passages marques inaudible. "
     "Tu produis entre 1 et 6 themes. "
+    "Tu classes la reunion dans meeting_type selon une seule de ces quatre categories : "
+    "commercial pour un echange avec un prospect ou un client vise a vendre ou negocier, "
+    "interne pour un echange entre collegues de la meme organisation, "
+    "client pour un suivi avec un client deja engage sans dimension de vente, "
+    "administratif pour un sujet organisationnel interne comme les conges ou les notes de frais. "
+    "Si la transcription ne permet pas de trancher clairement entre ces quatre categories, "
+    "tu mets meeting_type a non_determine. "
     "Tu reponds uniquement avec l'objet JSON demande, sans texte autour."
 )
 

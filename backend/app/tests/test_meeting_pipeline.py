@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 
+from app.contracts.meeting_intelligence import MeetingIntelligence, MeetingType
 from app.db import models
 from app.db.repository import Repository
 from app.orchestrator.meeting_pipeline import AttestationManquanteError, ConsentementRefuseError, MeetingPipeline
@@ -90,3 +91,115 @@ def test_pipeline_enregistre_le_message_derreur():
     reunion = repository.get_meeting(meeting_id, "u1")
     assert reunion["statut_traitement"] == models.STATUT_ERREUR
     assert reunion["message_erreur"] == "gladia indisponible"
+
+
+def test_pipeline_transitionne_par_chaque_statut_attendu():
+    pipeline, repository, transcription, llm = build_pipeline()
+    meeting_id = repository.create_meeting("u1", "reunion test")
+    repository.save_attestation(meeting_id, "u1")
+
+    asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
+
+    historique = repository.client.tables[models.TABLE_REUNION].historique_maj
+    statuts = [maj["statut_traitement"] for maj in historique if "statut_traitement" in maj]
+    assert statuts == [models.STATUT_TRANSCRIPTION, models.STATUT_ANALYSE, models.STATUT_TERMINE]
+
+
+def test_pipeline_erreur_a_l_analyse_conserve_la_transcription_deja_enregistree():
+    llm = FakeLLMProvider(erreur=RuntimeError("mistral indisponible"))
+    pipeline, repository, transcription, llm = build_pipeline(llm=llm)
+    meeting_id = repository.create_meeting("u1", "reunion test")
+    repository.save_attestation(meeting_id, "u1")
+
+    with pytest.raises(RuntimeError):
+        asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
+
+    reunion = repository.get_meeting(meeting_id, "u1")
+    assert reunion["statut_traitement"] == models.STATUT_ERREUR
+    segments = repository.client.table(models.TABLE_SEGMENT).select("*").eq("reunion_id", meeting_id).execute()
+    assert len(segments.data) == 1
+    comptes_rendus = (
+        repository.client.table(models.TABLE_COMPTE_RENDU).select("*").eq("reunion_id", meeting_id).execute()
+    )
+    assert comptes_rendus.data == []
+
+
+def test_pipeline_purge_automatiquement_l_audio_apres_le_compte_rendu():
+    pipeline, repository, transcription, llm = build_pipeline()
+    meeting_id = repository.create_meeting("u1", "reunion test")
+    repository.save_attestation(meeting_id, "u1")
+
+    asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
+
+    reunion = repository.get_meeting(meeting_id, "u1")
+    assert reunion["audio_purge"] is True
+    assert reunion["date_purge_audio"] is not None
+
+
+def test_pipeline_ne_purge_pas_si_l_analyse_echoue():
+    llm = FakeLLMProvider(erreur=RuntimeError("mistral indisponible"))
+    pipeline, repository, transcription, llm = build_pipeline(llm=llm)
+    meeting_id = repository.create_meeting("u1", "reunion test")
+    repository.save_attestation(meeting_id, "u1")
+
+    with pytest.raises(RuntimeError):
+        asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
+
+    reunion = repository.get_meeting(meeting_id, "u1")
+    assert reunion["audio_purge"] is False
+    assert reunion.get("date_purge_audio") is None
+
+
+def test_pipeline_enregistre_le_type_de_reunion_classifie():
+    intelligence = MeetingIntelligence(
+        summary="resume de test",
+        decisions=[],
+        key_points=[],
+        actions=[],
+        themes=[],
+        meeting_type=MeetingType.COMMERCIAL,
+    )
+    llm = FakeLLMProvider(intelligence=intelligence)
+    pipeline, repository, transcription, llm = build_pipeline(llm=llm)
+    meeting_id = repository.create_meeting("u1", "reunion test")
+    repository.save_attestation(meeting_id, "u1")
+
+    asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
+
+    reunion = repository.get_meeting(meeting_id, "u1")
+    assert reunion["type_reunion"] == "commercial"
+
+
+def test_pipeline_enregistre_la_valeur_de_repli_si_type_non_determine():
+    intelligence = MeetingIntelligence(
+        summary="resume de test",
+        decisions=[],
+        key_points=[],
+        actions=[],
+        themes=[],
+        meeting_type=MeetingType.NON_DETERMINE,
+    )
+    llm = FakeLLMProvider(intelligence=intelligence)
+    pipeline, repository, transcription, llm = build_pipeline(llm=llm)
+    meeting_id = repository.create_meeting("u1", "reunion test")
+    repository.save_attestation(meeting_id, "u1")
+
+    asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
+
+    reunion = repository.get_meeting(meeting_id, "u1")
+    assert reunion["type_reunion"] == "non_determine"
+
+
+def test_pipeline_parcours_complet_jusqu_au_compte_rendu():
+    pipeline, repository, transcription, llm = build_pipeline()
+    meeting_id = repository.create_meeting("u1", "reunion test")
+    repository.save_attestation(meeting_id, "u1")
+    jeton = repository.create_consent_link(meeting_id)
+    repository.submit_participant_consent(jeton, accepte=True)
+
+    asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
+
+    detail = repository.get_meeting_detail(meeting_id, "u1")
+    assert detail["reunion"]["statut_traitement"] == models.STATUT_TERMINE
+    assert detail["compte_rendu"]["resume"] == "resume de test"
+    assert len(detail["segments"]) == 1
