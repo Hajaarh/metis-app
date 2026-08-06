@@ -325,6 +325,62 @@ def test_set_meeting_error_enregistre_statut_et_message():
     assert ligne["message_erreur"] == "gladia indisponible"
 
 
+def test_set_meeting_status_efface_le_message_derreur_precedent():
+    repo = repository()
+    meeting_id = repo.create_meeting("u1", "reunion test")
+    repo.set_meeting_error(meeting_id, "gladia indisponible")
+    repo.set_meeting_status(meeting_id, models.STATUT_TRANSCRIPTION)
+    ligne = repo.client.tables[models.TABLE_REUNION].lignes[0]
+    assert ligne["statut_traitement"] == models.STATUT_TRANSCRIPTION
+    assert ligne["message_erreur"] is None
+
+
+def test_save_attestation_ignore_les_appels_repetes():
+    repo = repository()
+    meeting_id = repo.create_meeting("u1", "reunion test")
+    repo.save_attestation(meeting_id, "u1")
+    repo.save_attestation(meeting_id, "u1")
+    lignes = repo.client.tables[models.TABLE_ATTESTATION].lignes
+    assert len(lignes) == 1
+
+
+def test_save_transcript_remplace_la_transcription_existante():
+    repo = repository()
+    premier = Transcript(
+        meeting_id="reunion-1",
+        language="fr",
+        segments=[
+            Segment(
+                speaker_label="Intervenant A",
+                text="premiere tentative",
+                start_time=0.0,
+                end_time=1.0,
+                is_inaudible=False,
+            )
+        ],
+    )
+    second = Transcript(
+        meeting_id="reunion-1",
+        language="fr",
+        segments=[
+            Segment(
+                speaker_label="Intervenant A",
+                text="deuxieme tentative",
+                start_time=0.0,
+                end_time=1.0,
+                is_inaudible=False,
+            )
+        ],
+    )
+    repo.save_transcript(premier)
+    repo.save_transcript(second)
+    segments = repo.client.tables[models.TABLE_SEGMENT].lignes
+    locuteurs = repo.client.tables[models.TABLE_LOCUTEUR].lignes
+    assert len(segments) == 1
+    assert segments[0]["texte"] == "deuxieme tentative"
+    assert len(locuteurs) == 1
+
+
 def seed_reunions_pour_recherche(repo):
     repo.client.table(models.TABLE_REUNION).seed(
         [
