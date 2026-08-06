@@ -68,7 +68,7 @@ class Repository:
         self.client.table(models.TABLE_REUNION).update(valeurs).eq("id", reunion_id).execute()
 
     def set_meeting_status(self, reunion_id: str, statut: str) -> None:
-        self._update_meeting(reunion_id, {"statut_traitement": statut})
+        self._update_meeting(reunion_id, {"statut_traitement": statut, "message_erreur": None})
 
     def set_meeting_duration(self, reunion_id: str, duree_secondes: int) -> None:
         self._update_meeting(reunion_id, {"duree_secondes": duree_secondes})
@@ -91,6 +91,11 @@ class Repository:
         )
 
     def save_attestation(self, reunion_id: str, user_id: str) -> dict:
+        existante = (
+            self.client.table(models.TABLE_ATTESTATION).select("*").eq("reunion_id", reunion_id).execute()
+        )
+        if existante.data:
+            return existante.data[0]
         ligne = {
             "reunion_id": reunion_id,
             "utilisateur_id": user_id,
@@ -143,6 +148,8 @@ class Repository:
         return len(reponse.data) > 0
 
     def save_transcript(self, transcript: Transcript) -> None:
+        self.client.table(models.TABLE_SEGMENT).delete().eq("reunion_id", transcript.meeting_id).execute()
+        self.client.table(models.TABLE_LOCUTEUR).delete().eq("reunion_id", transcript.meeting_id).execute()
         labels = sorted({segment.speaker_label for segment in transcript.segments})
         lignes_locuteurs = [{"reunion_id": transcript.meeting_id, "label": label} for label in labels]
         reponse = self.client.table(models.TABLE_LOCUTEUR).insert(lignes_locuteurs).execute()
