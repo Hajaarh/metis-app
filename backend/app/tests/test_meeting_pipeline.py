@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 
+from app.contracts.meeting_intelligence import MeetingIntelligence, MeetingType
 from app.db import models
 from app.db.repository import Repository
 from app.orchestrator.meeting_pipeline import AttestationManquanteError, ConsentementRefuseError, MeetingPipeline
@@ -107,6 +108,46 @@ def test_pipeline_erreur_a_l_analyse_conserve_la_transcription_deja_enregistree(
         repository.client.table(models.TABLE_COMPTE_RENDU).select("*").eq("reunion_id", meeting_id).execute()
     )
     assert comptes_rendus.data == []
+
+
+def test_pipeline_enregistre_le_type_de_reunion_classifie():
+    intelligence = MeetingIntelligence(
+        summary="resume de test",
+        decisions=[],
+        key_points=[],
+        actions=[],
+        themes=[],
+        meeting_type=MeetingType.COMMERCIAL,
+    )
+    llm = FakeLLMProvider(intelligence=intelligence)
+    pipeline, repository, transcription, llm = build_pipeline(llm=llm)
+    meeting_id = repository.create_meeting("u1", "reunion test")
+    repository.save_attestation(meeting_id, "u1")
+
+    asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
+
+    reunion = repository.get_meeting(meeting_id, "u1")
+    assert reunion["type_reunion"] == "commercial"
+
+
+def test_pipeline_enregistre_la_valeur_de_repli_si_type_non_determine():
+    intelligence = MeetingIntelligence(
+        summary="resume de test",
+        decisions=[],
+        key_points=[],
+        actions=[],
+        themes=[],
+        meeting_type=MeetingType.NON_DETERMINE,
+    )
+    llm = FakeLLMProvider(intelligence=intelligence)
+    pipeline, repository, transcription, llm = build_pipeline(llm=llm)
+    meeting_id = repository.create_meeting("u1", "reunion test")
+    repository.save_attestation(meeting_id, "u1")
+
+    asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
+
+    reunion = repository.get_meeting(meeting_id, "u1")
+    assert reunion["type_reunion"] == "non_determine"
 
 
 def test_pipeline_parcours_complet_jusqu_au_compte_rendu():
