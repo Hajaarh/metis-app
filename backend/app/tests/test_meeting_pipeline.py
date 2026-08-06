@@ -79,6 +79,20 @@ def test_pipeline_traite_si_consentement_accepte():
     assert llm.appels == [meeting_id]
 
 
+def test_pipeline_enregistre_le_message_derreur():
+    transcription = FakeTranscriptionProvider(erreur=RuntimeError("gladia indisponible"))
+    pipeline, repository, transcription, llm = build_pipeline(transcription=transcription)
+    meeting_id = repository.create_meeting("u1", "reunion test")
+    repository.save_attestation(meeting_id, "u1")
+
+    with pytest.raises(RuntimeError):
+        asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
+
+    reunion = repository.get_meeting(meeting_id, "u1")
+    assert reunion["statut_traitement"] == models.STATUT_ERREUR
+    assert reunion["message_erreur"] == "gladia indisponible"
+
+
 def test_pipeline_transitionne_par_chaque_statut_attendu():
     pipeline, repository, transcription, llm = build_pipeline()
     meeting_id = repository.create_meeting("u1", "reunion test")
