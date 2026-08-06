@@ -5,12 +5,15 @@ from app.providers.transcription.base import TranscriptionProvider
 
 
 class FakeTranscriptionProvider(TranscriptionProvider):
-    def __init__(self, transcript: Transcript | None = None):
+    def __init__(self, transcript: Transcript | None = None, erreur: Exception | None = None):
         self.transcript = transcript
+        self.erreur = erreur
         self.appels = []
 
     async def transcribe(self, meeting_id: str, audio_file: bytes, file_name: str) -> Transcript:
         self.appels.append((meeting_id, file_name))
+        if self.erreur is not None:
+            raise self.erreur
         if self.transcript is not None:
             return self.transcript
         return Transcript(

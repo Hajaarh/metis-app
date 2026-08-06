@@ -27,6 +27,7 @@ create table reunion (
     type_reunion text,                   
     base_legale text not null,           
     statut_traitement text not null,
+    message_erreur text,                  -- message de l'exception si statut_traitement passe a erreur
     audio_purge boolean not null default false,
     date_purge_audio timestamp,           
     nombre_participants int,              
