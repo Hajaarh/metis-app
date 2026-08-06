@@ -13,6 +13,7 @@ router = APIRouter(prefix="/meetings", tags=["meetings"])
 class NouvelleReunion(BaseModel):
     titre: str
 
+
 TYPES_AUDIO_AUTORISES = (
     "audio/wav",
     "audio/x-wav",
