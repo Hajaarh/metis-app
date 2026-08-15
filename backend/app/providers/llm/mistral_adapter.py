@@ -13,6 +13,8 @@ SYSTEM_PROMPT = (
     "Tu ne generes aucune information absente de la reunion. "
     "Si un responsable n'est pas nomme, laisse responsible a null. "
     "Si une date n'est pas dite, laisse due_date a null. "
+    "Si une date est relative comme vendredi ou la semaine prochaine, "
+    "tu la restitues telle qu'elle est dite, sans jamais la convertir en date absolue. "
     "Tu ne completes pas les passages marques inaudible. "
     "Tu distingues clairement les trois categories suivantes. "
     "Une decision est un choix explicitement acte pendant la reunion. "

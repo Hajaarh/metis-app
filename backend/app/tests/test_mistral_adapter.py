@@ -21,6 +21,10 @@ def test_prompt_distingue_decision_point_cle_et_action():
     assert "reste a faire" in SYSTEM_PROMPT
 
 
+def test_prompt_interdit_de_convertir_une_date_relative_en_date_absolue():
+    assert "date absolue" in SYSTEM_PROMPT
+
+
 def test_meeting_type_est_obligatoire_dans_la_sortie_structuree():
     with pytest.raises(ValueError):
         MeetingIntelligence(
