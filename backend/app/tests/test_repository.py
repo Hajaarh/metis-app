@@ -210,6 +210,45 @@ def test_dashboard_metrics_duree_totale():
     assert metrics["duree_totale_secondes"] == 420
 
 
+def test_dashboard_metrics_isole_les_compteurs_de_reunions_par_utilisateur():
+    repo = repository()
+    repo.client.table(models.TABLE_REUNION).seed(
+        [
+            {"id": "r1", "utilisateur_id": "u1", "statut_traitement": "termine", "duree_secondes": 100, "type_reunion": "interne"},
+            {"id": "r2", "utilisateur_id": "u1", "statut_traitement": "en_attente", "duree_secondes": None, "type_reunion": None},
+            {"id": "r3", "utilisateur_id": "autre", "statut_traitement": "termine", "duree_secondes": 200, "type_reunion": "client"},
+        ]
+    )
+    metrics = repo.dashboard_metrics("u1")
+    assert metrics["nombre_reunions"] == 2
+    assert metrics["nombre_reunions_terminees"] == 1
+
+
+def test_dashboard_metrics_isole_le_nombre_d_actions_par_utilisateur():
+    repo = repository()
+    repo.client.table(models.TABLE_REUNION).seed(
+        [
+            {"id": "r1", "utilisateur_id": "u1", "statut_traitement": "termine", "duree_secondes": 100, "type_reunion": "interne"},
+            {"id": "r2", "utilisateur_id": "autre", "statut_traitement": "termine", "duree_secondes": 100, "type_reunion": "interne"},
+        ]
+    )
+    repo.client.table(models.TABLE_COMPTE_RENDU).seed(
+        [
+            {"id": "cr1", "reunion_id": "r1"},
+            {"id": "cr2", "reunion_id": "r2"},
+        ]
+    )
+    repo.client.table(models.TABLE_ACTION).seed(
+        [
+            {"id": "a1", "compte_rendu_id": "cr1"},
+            {"id": "a2", "compte_rendu_id": "cr2"},
+            {"id": "a3", "compte_rendu_id": "cr2"},
+        ]
+    )
+    metrics = repo.dashboard_metrics("u1")
+    assert metrics["nombre_actions"] == 1
+
+
 def test_dashboard_metrics_repartition_par_type():
     repo = repository()
     repo.client.table(models.TABLE_REUNION).seed(
