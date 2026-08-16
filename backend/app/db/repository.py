@@ -20,6 +20,12 @@ def parse_date(valeur):
         return None
 
 
+def resolve_segment_id(segment_ids: list, index: int | None) -> str | None:
+    if index is None or index < 0 or index >= len(segment_ids):
+        return None
+    return segment_ids[index]
+
+
 class Repository:
     def __init__(self, client=None):
         self.client = client or get_supabase_client()
@@ -165,9 +171,12 @@ class Repository:
             }
             for segment in transcript.segments
         ]
-        self.client.table(models.TABLE_SEGMENT).insert(lignes_segments).execute()
+        reponse = self.client.table(models.TABLE_SEGMENT).insert(lignes_segments).execute()
+        return [ligne["id"] for ligne in reponse.data]
 
-    def save_intelligence(self, reunion_id: str, intelligence: MeetingIntelligence, modele_utilise: str) -> None:
+    def save_intelligence(
+        self, reunion_id: str, intelligence: MeetingIntelligence, modele_utilise: str, segment_ids: list
+    ) -> None:
         version = self._replace_compte_rendu(reunion_id)
         compte_rendu = (
             self.client.table(models.TABLE_COMPTE_RENDU)
@@ -183,8 +192,8 @@ class Repository:
         )
         compte_rendu_id = compte_rendu.data[0]["id"]
         self.save_ordered(models.TABLE_POINT_CLE, compte_rendu_id, intelligence.key_points)
-        self.save_ordered(models.TABLE_DECISION, compte_rendu_id, intelligence.decisions)
-        self.save_actions(compte_rendu_id, intelligence.actions)
+        self.save_decisions(compte_rendu_id, intelligence.decisions, segment_ids)
+        self.save_actions(compte_rendu_id, intelligence.actions, segment_ids)
         self._update_meeting(reunion_id, {"type_reunion": intelligence.meeting_type})
         self.client.table(models.TABLE_REUNION_THEME).delete().eq("reunion_id", reunion_id).execute()
         for nom in dict.fromkeys(intelligence.themes):
@@ -212,7 +221,7 @@ class Repository:
         ]
         self.client.table(table).insert(lignes).execute()
 
-    def save_actions(self, compte_rendu_id: str, actions: list) -> None:
+    def save_actions(self, compte_rendu_id: str, actions: list, segment_ids: list) -> None:
         if not actions:
             return
         lignes = [
@@ -221,10 +230,25 @@ class Repository:
                 "intitule": action.label,
                 "responsable": action.responsible,
                 "echeance": parse_date(action.due_date),
+                "segment_id": resolve_segment_id(segment_ids, action.source_segment_index),
             }
             for action in actions
         ]
         self.client.table(models.TABLE_ACTION).insert(lignes).execute()
+
+    def save_decisions(self, compte_rendu_id: str, decisions: list, segment_ids: list) -> None:
+        if not decisions:
+            return
+        lignes = [
+            {
+                "compte_rendu_id": compte_rendu_id,
+                "contenu": decision.content,
+                "ordre": ordre,
+                "segment_id": resolve_segment_id(segment_ids, decision.source_segment_index),
+            }
+            for ordre, decision in enumerate(decisions)
+        ]
+        self.client.table(models.TABLE_DECISION).insert(lignes).execute()
 
     def link_theme(self, reunion_id: str, nom: str) -> None:
         existant = self.client.table(models.TABLE_THEME).select("id").eq("nom", nom).execute()

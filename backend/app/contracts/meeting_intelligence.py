@@ -16,11 +16,17 @@ class ActionItem(BaseModel):
     label: str
     responsible: str | None = None
     due_date: str | None = None
+    source_segment_index: int | None = None
+
+
+class DecisionItem(BaseModel):
+    content: str
+    source_segment_index: int | None = None
 
 
 class MeetingIntelligence(BaseModel):
     summary: str
-    decisions: list[str]
+    decisions: list[DecisionItem]
     key_points: list[str]
     actions: list[ActionItem]
     themes: list[str]

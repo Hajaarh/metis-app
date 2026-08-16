@@ -2,7 +2,8 @@ import asyncio
 
 import pytest
 
-from app.contracts.meeting_intelligence import MeetingIntelligence, MeetingType
+from app.contracts.meeting_intelligence import ActionItem, DecisionItem, MeetingIntelligence, MeetingType
+from app.contracts.transcript import Segment, Transcript
 from app.db import models
 from app.db.repository import Repository
 from app.orchestrator.meeting_pipeline import AttestationManquanteError, ConsentementRefuseError, MeetingPipeline
@@ -188,6 +189,40 @@ def test_pipeline_enregistre_la_valeur_de_repli_si_type_non_determine():
 
     reunion = repository.get_meeting(meeting_id, "u1")
     assert reunion["type_reunion"] == "non_determine"
+
+
+def test_pipeline_relie_les_actions_et_decisions_a_leur_segment_source():
+    pipeline, repository, transcription, llm = build_pipeline()
+    meeting_id = repository.create_meeting("u1", "reunion test")
+    repository.save_attestation(meeting_id, "u1")
+
+    pipeline.transcription_provider = FakeTranscriptionProvider(
+        transcript=Transcript(
+            meeting_id=meeting_id,
+            language="fr",
+            segments=[
+                Segment(speaker_label="Intervenant A", text="premier segment", start_time=0.0, end_time=2.0),
+                Segment(speaker_label="Intervenant B", text="deuxieme segment", start_time=2.0, end_time=4.0),
+            ],
+        )
+    )
+    pipeline.llm_provider = FakeLLMProvider(
+        intelligence=MeetingIntelligence(
+            summary="resume de test",
+            decisions=[DecisionItem(content="decision test", source_segment_index=1)],
+            key_points=[],
+            actions=[ActionItem(label="action test", source_segment_index=0)],
+            themes=[],
+            meeting_type=MeetingType.INTERNE,
+        )
+    )
+
+    asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
+
+    detail = repository.get_meeting_detail(meeting_id, "u1")
+    segments = detail["segments"]
+    assert detail["actions"][0]["segment_id"] == segments[0]["id"]
+    assert detail["decisions"][0]["segment_id"] == segments[1]["id"]
 
 
 def test_pipeline_parcours_complet_jusqu_au_compte_rendu():
