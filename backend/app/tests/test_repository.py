@@ -1,5 +1,5 @@
 from app.contracts.transcript import Segment, Transcript
-from app.contracts.meeting_intelligence import ActionItem
+from app.contracts.meeting_intelligence import ActionItem, DecisionItem
 from app.db import models
 from app.db.repository import Repository
 
@@ -100,7 +100,7 @@ def repository():
 def test_save_actions_conserve_responsable_et_echeance_absents():
     repo = repository()
     actions = [ActionItem(label="relancer le fournisseur", responsible=None, due_date=None)]
-    repo.save_actions("compte-rendu-1", actions)
+    repo.save_actions("compte-rendu-1", actions, segment_ids=[])
     ligne = repo.client.tables["action"].dernieres_lignes[0]
     assert ligne["responsable"] is None
     assert ligne["echeance"] is None
@@ -109,7 +109,7 @@ def test_save_actions_conserve_responsable_et_echeance_absents():
 def test_save_actions_conserve_les_valeurs_presentes():
     repo = repository()
     actions = [ActionItem(label="envoyer le devis", responsible="Alice", due_date="2026-08-01")]
-    repo.save_actions("compte-rendu-1", actions)
+    repo.save_actions("compte-rendu-1", actions, segment_ids=[])
     ligne = repo.client.tables["action"].dernieres_lignes[0]
     assert ligne["responsable"] == "Alice"
     assert ligne["echeance"] == "2026-08-01"
@@ -122,10 +122,49 @@ def test_save_actions_insere_exactement_le_nombre_d_actions():
         ActionItem(label="action 2"),
         ActionItem(label="action 3"),
     ]
-    repo.save_actions("compte-rendu-1", actions)
+    repo.save_actions("compte-rendu-1", actions, segment_ids=[])
     lignes = repo.client.tables["action"].dernieres_lignes
     assert len(lignes) == 3
     assert [ligne["intitule"] for ligne in lignes] == ["action 1", "action 2", "action 3"]
+
+
+def test_save_actions_resout_le_segment_source():
+    repo = repository()
+    actions = [ActionItem(label="relancer le fournisseur", source_segment_index=1)]
+    repo.save_actions("compte-rendu-1", actions, segment_ids=["seg-0", "seg-1", "seg-2"])
+    ligne = repo.client.tables["action"].dernieres_lignes[0]
+    assert ligne["segment_id"] == "seg-1"
+
+
+def test_save_actions_sans_segment_source_reste_vide():
+    repo = repository()
+    actions = [ActionItem(label="relancer le fournisseur")]
+    repo.save_actions("compte-rendu-1", actions, segment_ids=["seg-0"])
+    ligne = repo.client.tables["action"].dernieres_lignes[0]
+    assert ligne["segment_id"] is None
+
+
+def test_save_actions_index_hors_limites_reste_vide():
+    repo = repository()
+    actions = [ActionItem(label="relancer le fournisseur", source_segment_index=5)]
+    repo.save_actions("compte-rendu-1", actions, segment_ids=["seg-0"])
+    ligne = repo.client.tables["action"].dernieres_lignes[0]
+    assert ligne["segment_id"] is None
+
+
+def test_save_decisions_resout_le_segment_source():
+    repo = repository()
+    decisions = [DecisionItem(content="le pack annuel est valide", source_segment_index=0)]
+    repo.save_decisions("compte-rendu-1", decisions, segment_ids=["seg-0", "seg-1"])
+    ligne = repo.client.tables["decision"].dernieres_lignes[0]
+    assert ligne["contenu"] == "le pack annuel est valide"
+    assert ligne["segment_id"] == "seg-0"
+
+
+def test_save_decisions_liste_vide_n_insere_rien():
+    repo = repository()
+    repo.save_decisions("compte-rendu-1", [], segment_ids=[])
+    assert "decision" not in repo.client.tables
 
 
 def test_save_ordered_conserve_le_contenu_et_l_ordre():
