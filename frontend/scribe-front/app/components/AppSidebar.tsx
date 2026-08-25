@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Mic, Calendar, Users, Settings, Search, Plus, ChevronRight } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Mic, Calendar, Users, Settings, Search, Plus, LogOut } from "lucide-react";
 import { MeetingAvatar } from "./MeetingAvatar";
+import { clearToken } from "@/app/lib/auth";
 
 interface AppSidebarProps {
   children?: React.ReactNode;
@@ -17,6 +18,12 @@ const NAV_ITEMS = [
 
 export function AppSidebar({ children }: AppSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  function handleLogout() {
+    clearToken();
+    router.push("/login");
+  }
 
   return (
     <div className="flex h-screen bg-background">
@@ -95,7 +102,13 @@ export function AppSidebar({ children }: AppSidebarProps) {
               Plan gratuit
             </p>
           </div>
-          <ChevronRight size={12} className="text-muted-foreground" />
+          <button
+            onClick={handleLogout}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            title="Se déconnecter"
+          >
+            <LogOut size={14} strokeWidth={2} />
+          </button>
         </div>
       </aside>
 
