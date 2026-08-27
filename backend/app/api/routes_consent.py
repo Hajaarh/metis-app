@@ -11,6 +11,17 @@ class ReponseConsentement(BaseModel):
     accepte: bool
 
 
+@router.get("/{jeton}")
+def get_consent(
+    jeton: str,
+    repository: Repository = Depends(get_repository),
+):
+    context = repository.get_consent_context(jeton)
+    if context is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="jeton introuvable")
+    return context
+
+
 @router.post("/{jeton}")
 def submit_consent(
     jeton: str,
