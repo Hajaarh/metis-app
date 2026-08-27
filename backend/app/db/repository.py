@@ -57,7 +57,35 @@ class Repository:
     def delete_user_account(self, user_id: str) -> None:
         self.client.table(models.TABLE_UTILISATEUR).delete().eq("id", user_id).execute()
 
-    def create_meeting(self, user_id: str, titre: str) -> str:
+    def list_clients(self, user_id: str) -> list:
+        reponse = (
+            self.client.table(models.TABLE_CLIENT)
+            .select("id, nom, date_creation")
+            .eq("utilisateur_id", user_id)
+            .order("date_creation", desc=False)
+            .execute()
+        )
+        return reponse.data
+
+    def create_client(self, user_id: str, nom: str) -> dict:
+        ligne = {"utilisateur_id": user_id, "nom": nom}
+        reponse = self.client.table(models.TABLE_CLIENT).insert(ligne).execute()
+        return reponse.data[0]
+
+    def delete_client(self, client_id: str, user_id: str) -> bool:
+        existant = (
+            self.client.table(models.TABLE_CLIENT)
+            .select("id")
+            .eq("id", client_id)
+            .eq("utilisateur_id", user_id)
+            .execute()
+        )
+        if not existant.data:
+            return False
+        self.client.table(models.TABLE_CLIENT).delete().eq("id", client_id).execute()
+        return True
+
+    def create_meeting(self, user_id: str, titre: str, client_id: str | None = None) -> str:
         ligne = {
             "utilisateur_id": user_id,
             "mode": models.MODE_DICTAPHONE,
@@ -67,6 +95,8 @@ class Repository:
             "statut_traitement": models.STATUT_EN_ATTENTE,
             "audio_purge": False,
         }
+        if client_id:
+            ligne["client_id"] = client_id
         reponse = self.client.table(models.TABLE_REUNION).insert(ligne).execute()
         return reponse.data[0]["id"]
 
