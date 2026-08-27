@@ -1,28 +1,49 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Calendar, Users } from "lucide-react";
+import { ArrowLeft, Calendar } from "lucide-react";
 import { AppSidebar } from "@/app/components/AppSidebar";
-import { StatusDot } from "@/app/components/StatusDot";
-import { MeetingAvatar } from "@/app/components/MeetingAvatar";
-import { TranscriptView } from "@/app/components/TranscriptView";
-import { SummaryView } from "@/app/components/SummaryView";
-import { MeetingMetadata } from "@/app/components/MeetingMetadata";
+import { StatusDot, type BackendStatus } from "@/app/components/StatusDot";
+import { TranscriptView, type Segment, type Locuteur } from "@/app/components/TranscriptView";
+import { SummaryView, type CompteRendu, type PointCle, type Decision, type Action } from "@/app/components/SummaryView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
-import { Badge } from "@/app/components/ui/badge";
-import {
-  MOCK_REUNIONS,
-  MOCK_LOCUTEURS,
-  MOCK_SEGMENTS,
-  MOCK_COMPTES_RENDUS,
-  MOCK_REUNION_THEMES,
-  MOCK_ATTESTATIONS,
-  MOCK_CONSENTEMENTS,
-  formatDuration,
-  formatTime,
-  formatDate,
-} from "@/app/lib/mock-data";
+import { apiFetch } from "@/app/lib/api";
+
+interface Reunion {
+  id: string;
+  titre: string;
+  statut_traitement: BackendStatus;
+  date_debut: string;
+  duree_secondes: number | null;
+  mode: string;
+}
+
+interface MeetingDetail {
+  reunion: Reunion;
+  segments: Segment[];
+  locuteurs: Locuteur[];
+  compte_rendu: CompteRendu | null;
+  points_cles: PointCle[];
+  decisions: Decision[];
+  actions: Action[];
+}
+
+function formatTime(dateStr: string): string {
+  return new Date(dateStr).toLocaleString("fr-FR", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatDuration(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) return `${h}h${m.toString().padStart(2, "0")}`;
+  return `${m} min`;
+}
 
 export default function MeetingDetailPage({
   params,
@@ -30,13 +51,40 @@ export default function MeetingDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const reunion = MOCK_REUNIONS.find((r) => r.id === id) ?? MOCK_REUNIONS[0];
-  const locuteurs = MOCK_LOCUTEURS.filter((l) => l.reunionId === reunion.id);
-  const segments = MOCK_SEGMENTS.filter((s) => s.reunionId === reunion.id);
-  const compteRendu = MOCK_COMPTES_RENDUS.find((cr) => cr.reunionId === reunion.id);
-  const themes = MOCK_REUNION_THEMES[reunion.id] || [];
-  const attestation = MOCK_ATTESTATIONS[reunion.id];
-  const consentements = MOCK_CONSENTEMENTS[reunion.id];
+  const [detail, setDetail] = useState<MeetingDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    apiFetch(`/meetings/${id}`)
+      .then(async (r) => {
+        if (r.status === 404) { setNotFound(true); return; }
+        setDetail(await r.json());
+      })
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return (
+      <AppSidebar>
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-sm text-muted-foreground">Chargement…</p>
+        </div>
+      </AppSidebar>
+    );
+  }
+
+  if (notFound || !detail) {
+    return (
+      <AppSidebar>
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-sm text-muted-foreground">Réunion introuvable.</p>
+        </div>
+      </AppSidebar>
+    );
+  }
+
+  const { reunion, segments, locuteurs, compte_rendu, points_cles, decisions, actions } = detail;
 
   return (
     <AppSidebar>
@@ -49,38 +97,20 @@ export default function MeetingDetailPage({
           >
             <ArrowLeft size={16} />
           </Link>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-medium text-foreground">{reunion.titre}</h1>
-              <StatusDot status={reunion.statutTraitement} />
-            </div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-medium text-foreground">{reunion.titre}</h1>
+            <StatusDot status={reunion.statut_traitement} />
           </div>
         </div>
 
-        {/* Meta */}
         <div className="flex items-center gap-3 ml-10">
           <div className="flex items-center gap-1.5">
             <Calendar size={12} strokeWidth={2} className="text-muted-foreground" />
             <span className="text-[12.5px] text-muted-foreground">
-              {formatTime(reunion.dateDebut)} · {formatDuration(reunion.dureeSecondes)}
+              {formatTime(reunion.date_debut)}
+              {reunion.duree_secondes && ` · ${formatDuration(reunion.duree_secondes)}`}
             </span>
           </div>
-          <span className="text-border">·</span>
-          <div className="flex items-center gap-1.5">
-            <Users size={12} className="text-muted-foreground" />
-            <span className="text-[12.5px] text-muted-foreground">
-              {reunion.nombreParticipants} participant{reunion.nombreParticipants > 1 ? "s" : ""}
-            </span>
-          </div>
-          {reunion.clientNom && (
-            <>
-              <span className="text-border">·</span>
-              <Badge variant="secondary" className="text-[11px]">{reunion.clientNom}</Badge>
-            </>
-          )}
-          <Badge variant="outline" className="text-[11px]">
-            {reunion.mode === "dictaphone" ? "Dictaphone" : "Visio"}
-          </Badge>
         </div>
       </div>
 
@@ -91,7 +121,6 @@ export default function MeetingDetailPage({
             <TabsList>
               <TabsTrigger value="transcription">Transcription</TabsTrigger>
               <TabsTrigger value="compte-rendu">Compte rendu</TabsTrigger>
-              <TabsTrigger value="informations">Informations</TabsTrigger>
             </TabsList>
           </div>
 
@@ -99,36 +128,35 @@ export default function MeetingDetailPage({
             <div className="max-w-[680px] mx-auto px-8 py-8">
               <TabsContent value="transcription">
                 {segments.length > 0 ? (
-                  <TranscriptView segments={segments} locuteurs={locuteurs} />
+                  <TranscriptView
+                    meetingId={id}
+                    segments={segments}
+                    locuteurs={locuteurs}
+                  />
                 ) : (
-                  <div className="text-center py-12">
-                    <p className="text-sm text-muted-foreground">
-                      Aucune transcription disponible pour cette réunion.
-                    </p>
-                  </div>
+                  <p className="text-sm text-muted-foreground text-center py-12">
+                    {reunion.statut_traitement === "termine"
+                      ? "Aucune transcription disponible."
+                      : "La transcription est en cours…"}
+                  </p>
                 )}
               </TabsContent>
 
               <TabsContent value="compte-rendu">
-                {compteRendu ? (
-                  <SummaryView compteRendu={compteRendu} />
+                {compte_rendu ? (
+                  <SummaryView
+                    compteRendu={compte_rendu}
+                    pointsCles={points_cles}
+                    decisions={decisions}
+                    actions={actions}
+                  />
                 ) : (
-                  <div className="text-center py-12">
-                    <p className="text-sm text-muted-foreground">
-                      Le compte rendu n&apos;a pas encore été généré.
-                    </p>
-                  </div>
+                  <p className="text-sm text-muted-foreground text-center py-12">
+                    {reunion.statut_traitement === "termine"
+                      ? "Aucun compte rendu disponible."
+                      : "Le compte rendu sera généré après la transcription."}
+                  </p>
                 )}
-              </TabsContent>
-
-              <TabsContent value="informations">
-                <MeetingMetadata
-                  reunion={reunion}
-                  themes={themes}
-                  attestation={attestation}
-                  consentements={consentements}
-                  modeleUtilise={compteRendu?.modeleUtilise}
-                />
               </TabsContent>
             </div>
           </div>
