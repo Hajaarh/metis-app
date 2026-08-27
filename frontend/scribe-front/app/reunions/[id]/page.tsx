@@ -9,6 +9,7 @@ import { TranscriptView, type Segment, type Locuteur } from "@/app/components/Tr
 import { SummaryView, type CompteRendu, type PointCle, type Decision, type Action } from "@/app/components/SummaryView";
 import { AudioRecorder } from "@/app/components/AudioRecorder";
 import { AudioImport } from "@/app/components/AudioImport";
+import { TabCaptureRecorder } from "@/app/components/TabCaptureRecorder";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
 import { Button } from "@/app/components/ui/button";
 import { apiFetch, API_URL } from "@/app/lib/api";
@@ -220,29 +221,34 @@ export default function MeetingDetailPage({
                   </p>
                 </div>
 
-                {/* Source toggle */}
-                <div className="flex items-center rounded-[10px] p-[3px] gap-0.5 bg-muted w-fit">
-                  {(["record", "import"] as const).map((value) => {
-                    const active = audioSource === value;
-                    return (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setAudioSource(value)}
-                        className={`px-3.5 py-1.5 rounded-[8px] text-[12.5px] font-medium transition-all ${
-                          active ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
-                        }`}
-                      >
-                        {value === "record" ? "Enregistrer" : "Importer"}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {audioSource === "record" ? (
-                  <AudioRecorder onBlobReady={setRecordedBlob} />
+                {reunion.mode === "visio" ? (
+                  <TabCaptureRecorder onBlobReady={setRecordedBlob} />
                 ) : (
-                  <AudioImport onFileChange={setImportedFile} />
+                  <>
+                    {/* Source toggle — dictaphone only */}
+                    <div className="flex items-center rounded-[10px] p-[3px] gap-0.5 bg-muted w-fit">
+                      {(["record", "import"] as const).map((value) => {
+                        const active = audioSource === value;
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => setAudioSource(value)}
+                            className={`px-3.5 py-1.5 rounded-[8px] text-[12.5px] font-medium transition-all ${
+                              active ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+                            }`}
+                          >
+                            {value === "record" ? "Enregistrer" : "Importer"}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {audioSource === "record" ? (
+                      <AudioRecorder onBlobReady={setRecordedBlob} />
+                    ) : (
+                      <AudioImport onFileChange={setImportedFile} />
+                    )}
+                  </>
                 )}
 
                 {uploadError && <p className="text-sm text-destructive">{uploadError}</p>}
