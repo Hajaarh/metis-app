@@ -5,15 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Mic, Video } from "lucide-react";
 import { AppSidebar } from "@/app/components/AppSidebar";
-import { AudioRecorder } from "@/app/components/AudioRecorder";
-import { AudioImport } from "@/app/components/AudioImport";
 import { ConsentBanner } from "@/app/components/ConsentBanner";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
-import { apiFetch, API_URL } from "@/app/lib/api";
-import { getToken } from "@/app/lib/auth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
+import { apiFetch } from "@/app/lib/api";
 
 interface Client {
   id: string;
@@ -31,11 +28,7 @@ export default function NewMeetingPage() {
   const [clientId, setClientId] = useState<string>("");
   const [mode, setMode] = useState<Mode>("dictaphone");
   const [baseLegale, setBaseLegale] = useState<BaseLegale>("consentement");
-  const [audioSource, setAudioSource] = useState<"record" | "import">("record");
-
   const [consentAccepted, setConsentAccepted] = useState(false);
-  const [importedFile, setImportedFile] = useState<File | null>(null);
-  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -44,58 +37,19 @@ export default function NewMeetingPage() {
     apiFetch("/clients").then((r) => r.json()).then(setClients);
   }, []);
 
-  const audioReady =
-    mode === "visio" ||
-    (audioSource === "import" && importedFile !== null) ||
-    (audioSource === "record" && recordedBlob !== null);
-
-  const canSubmit = titre.trim() && consentAccepted && audioReady && !loading;
+  const canSubmit = titre.trim() && consentAccepted && !loading;
 
   async function handleSubmit() {
     if (!canSubmit) return;
     setError("");
     setLoading(true);
-
     try {
-      // 1. Créer la réunion
-      const meetingRes = await apiFetch("/meetings", {
+      const res = await apiFetch("/meetings", {
         method: "POST",
         body: JSON.stringify({ titre, client_id: clientId || null }),
       });
-
-      if (!meetingRes.ok) {
-        setError("Impossible de créer la réunion.");
-        return;
-      }
-
-      const { meeting_id } = await meetingRes.json();
-
-      // 2. Uploader l'audio si disponible
-      const audioFile =
-        importedFile ??
-        (recordedBlob
-          ? new File([recordedBlob], "enregistrement.webm", { type: recordedBlob.type })
-          : null);
-
-      if (audioFile) {
-        const formData = new FormData();
-        formData.append("file", audioFile);
-        formData.append("consentement_organisateur", "true");
-
-        const token = getToken();
-        const audioRes = await fetch(`${API_URL}/meetings/${meeting_id}/audio`, {
-          method: "POST",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          body: formData,
-        });
-
-        if (!audioRes.ok) {
-          setError("Réunion créée, mais l'upload audio a échoué. Réessayez depuis le détail.");
-          router.push(`/reunions/${meeting_id}`);
-          return;
-        }
-      }
-
+      if (!res.ok) { setError("Impossible de créer la réunion."); return; }
+      const { meeting_id } = await res.json();
       router.push(`/reunions/${meeting_id}`);
     } catch {
       setError("Une erreur est survenue. Réessayez.");
@@ -143,9 +97,7 @@ export default function NewMeetingPage() {
               </SelectTrigger>
               <SelectContent>
                 {clients.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.nom}
-                  </SelectItem>
+                  <SelectItem key={c.id} value={c.id}>{c.nom}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -208,49 +160,6 @@ export default function NewMeetingPage() {
             </div>
           </div>
 
-          {/* Audio source (dictaphone only) */}
-          {mode === "dictaphone" && (
-            <div className="space-y-2">
-              <Label>Source audio</Label>
-              <div className="flex items-center rounded-[10px] p-[3px] gap-0.5 bg-muted w-fit">
-                {([
-                  { value: "record" as const, label: "Enregistrer" },
-                  { value: "import" as const, label: "Importer" },
-                ]).map(({ value, label }) => {
-                  const active = audioSource === value;
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setAudioSource(value)}
-                      className={`px-3.5 py-1.5 rounded-[8px] text-[12.5px] font-medium transition-all ${
-                        active ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {audioSource === "record" ? (
-                <AudioRecorder onBlobReady={setRecordedBlob} />
-              ) : (
-                <AudioImport onFileChange={setImportedFile} />
-              )}
-            </div>
-          )}
-
-          {mode === "visio" && (
-            <div className="rounded-xl border-2 border-dashed p-8 text-center">
-              <Video size={24} className="mx-auto mb-3 text-muted-foreground" />
-              <p className="text-sm font-medium text-foreground mb-1">Mode visio</p>
-              <p className="text-[12px] text-muted-foreground">
-                La capture audio sera démarrée automatiquement lors de la visioconférence.
-              </p>
-            </div>
-          )}
-
           {/* Consent */}
           <ConsentBanner onAcceptedChange={setConsentAccepted} />
 
@@ -262,11 +171,7 @@ export default function NewMeetingPage() {
               <Link href="/">Annuler</Link>
             </Button>
             <Button onClick={handleSubmit} disabled={!canSubmit}>
-              {loading
-                ? "Envoi en cours…"
-                : mode === "dictaphone" && audioSource === "import"
-                ? "Importer et transcrire"
-                : "Démarrer la réunion"}
+              {loading ? "Création…" : "Créer la réunion"}
             </Button>
           </div>
         </div>

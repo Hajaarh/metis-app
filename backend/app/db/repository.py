@@ -174,6 +174,25 @@ class Repository:
         self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT).insert(ligne).execute()
         return jeton
 
+    def get_consent_context(self, jeton: str) -> dict | None:
+        reponse = (
+            self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT)
+            .select("jeton, choix, reunion_id")
+            .eq("jeton", jeton)
+            .execute()
+        )
+        if not reponse.data:
+            return None
+        consentement = reponse.data[0]
+        reunion = (
+            self.client.table(models.TABLE_REUNION)
+            .select("titre")
+            .eq("id", consentement["reunion_id"])
+            .execute()
+        )
+        titre = reunion.data[0]["titre"] if reunion.data else ""
+        return {"jeton": jeton, "reunion_titre": titre, "choix": consentement["choix"]}
+
     def submit_participant_consent(self, jeton: str, accepte: bool) -> bool:
         existant = (
             self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT).select("id").eq("jeton", jeton).execute()
@@ -359,8 +378,15 @@ class Repository:
             .eq("reunion_id", reunion_id)
             .execute()
         )
+        consentement = (
+            self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT)
+            .select("jeton")
+            .eq("reunion_id", reunion_id)
+            .execute()
+        )
         detail = {
             "reunion": reunion,
+            "jeton_consentement": consentement.data[0]["jeton"] if consentement.data else None,
             "segments": segments.data,
             "locuteurs": locuteurs.data,
             "compte_rendu": None,
