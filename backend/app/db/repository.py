@@ -67,10 +67,32 @@ class Repository:
         )
         return reponse.data
 
+    def get_client(self, client_id: str, user_id: str) -> dict | None:
+        reponse = (
+            self.client.table(models.TABLE_CLIENT)
+            .select("id, nom, date_creation")
+            .eq("id", client_id)
+            .eq("utilisateur_id", user_id)
+            .execute()
+        )
+        return reponse.data[0] if reponse.data else None
+
     def create_client(self, user_id: str, nom: str) -> dict:
         ligne = {"utilisateur_id": user_id, "nom": nom}
         reponse = self.client.table(models.TABLE_CLIENT).insert(ligne).execute()
         return reponse.data[0]
+
+    def rename_client(self, client_id: str, user_id: str, nom: str) -> dict | None:
+        existant = self.get_client(client_id, user_id)
+        if not existant:
+            return None
+        reponse = (
+            self.client.table(models.TABLE_CLIENT)
+            .update({"nom": nom})
+            .eq("id", client_id)
+            .execute()
+        )
+        return reponse.data[0] if reponse.data else None
 
     def delete_client(self, client_id: str, user_id: str) -> bool:
         existant = (
@@ -294,7 +316,7 @@ class Repository:
     def log_audio_purge(self, reunion_id: str) -> None:
         self._update_meeting(reunion_id, {"audio_purge": True, "date_purge_audio": now_iso()})
 
-    def list_meetings(self, user_id: str, recherche: str | None = None) -> list:
+    def list_meetings(self, user_id: str, recherche: str | None = None, client_id: str | None = None) -> list:
         requete = (
             self.client.table(models.TABLE_REUNION)
             .select("id, titre, statut_traitement, date_debut")
@@ -302,6 +324,8 @@ class Repository:
         )
         if recherche:
             requete = requete.ilike("titre", f"%{recherche}%")
+        if client_id:
+            requete = requete.eq("client_id", client_id)
         reponse = requete.order("date_debut", desc=True).execute()
         return reponse.data
 

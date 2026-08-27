@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Plus, Search, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { AppSidebar } from "@/app/components/AppSidebar";
@@ -8,7 +8,6 @@ import { MeetingAvatar } from "@/app/components/MeetingAvatar";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
-import { Badge } from "@/app/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -24,7 +23,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/app/components/ui/dialog";
 import {
   DropdownMenu,
@@ -33,17 +31,28 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/app/components/ui/dropdown-menu";
-import { MOCK_CLIENTS, getRelativeDate } from "@/app/lib/mock-data";
-import type { MockClient } from "@/app/lib/mock-data";
+import { apiFetch } from "@/app/lib/api";
+
+interface Client {
+  id: string;
+  nom: string;
+  date_creation: string;
+}
 
 export default function ClientsPage() {
-  const [clients, setClients] = useState(MOCK_CLIENTS);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [editingClient, setEditingClient] = useState<MockClient | null>(null);
-  const [deletingClient, setDeletingClient] = useState<MockClient | null>(null);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [deletingClient, setDeletingClient] = useState<Client | null>(null);
   const [formNom, setFormNom] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    apiFetch("/clients").then((r) => r.json()).then(setClients).finally(() => setLoading(false));
+  }, []);
 
   const filtered = clients.filter((c) =>
     c.nom.toLowerCase().includes(search.toLowerCase())
@@ -55,35 +64,42 @@ export default function ClientsPage() {
     setDialogOpen(true);
   }
 
-  function openEdit(client: MockClient) {
+  function openEdit(client: Client) {
     setEditingClient(client);
     setFormNom(client.nom);
     setDialogOpen(true);
   }
 
-  function handleSave() {
-    if (!formNom.trim()) return;
+  async function handleSave() {
+    const nom = formNom.trim();
+    if (!nom) return;
+    setSaving(true);
     if (editingClient) {
-      setClients((prev) =>
-        prev.map((c) => (c.id === editingClient.id ? { ...c, nom: formNom.trim() } : c))
-      );
+      const r = await apiFetch(`/clients/${editingClient.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ nom }),
+      });
+      if (r.ok) {
+        setClients((prev) => prev.map((c) => (c.id === editingClient.id ? { ...c, nom } : c)));
+      }
     } else {
-      const newClient: MockClient = {
-        id: `c${Date.now()}`,
-        nom: formNom.trim(),
-        dateCreation: new Date().toISOString().split("T")[0],
-        dateDernierContact: null,
-        nombreReunions: 0,
-      };
-      setClients((prev) => [...prev, newClient]);
+      const r = await apiFetch("/clients", {
+        method: "POST",
+        body: JSON.stringify({ nom }),
+      });
+      if (r.ok) {
+        const created: Client = await r.json();
+        setClients((prev) => [...prev, created]);
+      }
     }
+    setSaving(false);
     setDialogOpen(false);
   }
 
-  function handleDelete() {
-    if (deletingClient) {
-      setClients((prev) => prev.filter((c) => c.id !== deletingClient.id));
-    }
+  async function handleDelete() {
+    if (!deletingClient) return;
+    await apiFetch(`/clients/${deletingClient.id}`, { method: "DELETE" });
+    setClients((prev) => prev.filter((c) => c.id !== deletingClient.id));
     setDeleteDialogOpen(false);
     setDeletingClient(null);
   }
@@ -94,7 +110,9 @@ export default function ClientsPage() {
       <div className="flex items-center justify-between px-8 pt-6 pb-4 shrink-0 border-b border-border">
         <div>
           <h1 className="text-xl font-medium text-foreground">Clients</h1>
-          <p className="text-sm text-muted-foreground">{clients.length} clients</p>
+          {!loading && (
+            <p className="text-sm text-muted-foreground">{clients.length} client{clients.length !== 1 ? "s" : ""}</p>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 h-8 rounded-xl px-3 bg-secondary">
@@ -115,13 +133,14 @@ export default function ClientsPage() {
 
       {/* Table */}
       <div className="flex-1 overflow-y-auto px-8 py-6 scrollbar-hide">
-        {filtered.length > 0 ? (
+        {loading && (
+          <p className="text-sm text-muted-foreground text-center py-12">Chargement…</p>
+        )}
+        {!loading && filtered.length > 0 ? (
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Nom</TableHead>
-                <TableHead>Dernier contact</TableHead>
-                <TableHead>Réunions</TableHead>
                 <TableHead>Date création</TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
@@ -138,18 +157,8 @@ export default function ClientsPage() {
                       <span className="font-medium text-foreground">{client.nom}</span>
                     </Link>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {client.dateDernierContact
-                      ? getRelativeDate(client.dateDernierContact)
-                      : "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="text-[11px]">
-                      {client.nombreReunions}
-                    </Badge>
-                  </TableCell>
                   <TableCell className="text-muted-foreground text-[12px]">
-                    {new Date(client.dateCreation).toLocaleDateString("fr-FR", {
+                    {new Date(client.date_creation).toLocaleDateString("fr-FR", {
                       day: "numeric",
                       month: "short",
                       year: "numeric",
@@ -185,7 +194,7 @@ export default function ClientsPage() {
               ))}
             </TableBody>
           </Table>
-        ) : (
+        ) : !loading && (
           <div className="text-center py-16">
             <p className="text-sm text-muted-foreground mb-4">
               {search ? "Aucun client trouvé" : "Aucun client pour le moment"}
@@ -204,13 +213,9 @@ export default function ClientsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {editingClient ? "Modifier le client" : "Ajouter un client"}
-            </DialogTitle>
+            <DialogTitle>{editingClient ? "Modifier le client" : "Ajouter un client"}</DialogTitle>
             <DialogDescription>
-              {editingClient
-                ? "Modifiez les informations du client."
-                : "Ajoutez un nouveau client à votre espace."}
+              {editingClient ? "Modifiez les informations du client." : "Ajoutez un nouveau client à votre espace."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -226,11 +231,9 @@ export default function ClientsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Annuler
-            </Button>
-            <Button onClick={handleSave} disabled={!formNom.trim()}>
-              {editingClient ? "Enregistrer" : "Ajouter"}
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
+            <Button onClick={handleSave} disabled={!formNom.trim() || saving}>
+              {saving ? "Enregistrement…" : editingClient ? "Enregistrer" : "Ajouter"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -247,12 +250,8 @@ export default function ClientsPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-              Annuler
-            </Button>
-            <Button variant="destructive" onClick={handleDelete}>
-              Supprimer
-            </Button>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Annuler</Button>
+            <Button variant="destructive" onClick={handleDelete}>Supprimer</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
