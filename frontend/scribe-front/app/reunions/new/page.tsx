@@ -46,7 +46,7 @@ export default function NewMeetingPage() {
     try {
       const res = await apiFetch("/meetings", {
         method: "POST",
-        body: JSON.stringify({ titre, client_id: clientId || null }),
+        body: JSON.stringify({ titre, client_id: clientId || null, mode }),
       });
       if (!res.ok) { setError("Impossible de créer la réunion."); return; }
       const { meeting_id } = await res.json();
