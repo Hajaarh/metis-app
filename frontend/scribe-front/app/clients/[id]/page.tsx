@@ -1,20 +1,25 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Calendar, Users } from "lucide-react";
+import { ArrowLeft, Calendar } from "lucide-react";
 import { AppSidebar } from "@/app/components/AppSidebar";
-import { StatusDot } from "@/app/components/StatusDot";
+import { StatusDot, type BackendStatus } from "@/app/components/StatusDot";
 import { MeetingAvatar } from "@/app/components/MeetingAvatar";
-import { Badge } from "@/app/components/ui/badge";
-import {
-  MOCK_CLIENTS,
-  MOCK_REUNIONS,
-  formatDuration,
-  formatTime,
-  formatDate,
-  getRelativeDate,
-} from "@/app/lib/mock-data";
+import { apiFetch } from "@/app/lib/api";
+
+interface Client {
+  id: string;
+  nom: string;
+  date_creation: string;
+}
+
+interface Reunion {
+  id: string;
+  titre: string;
+  statut_traitement: BackendStatus;
+  date_debut: string;
+}
 
 export default function ClientDetailPage({
   params,
@@ -22,14 +27,38 @@ export default function ClientDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const client = MOCK_CLIENTS.find((c) => c.id === id);
-  const reunions = MOCK_REUNIONS.filter((r) => r.clientId === id);
+  const [client, setClient] = useState<Client | null>(null);
+  const [reunions, setReunions] = useState<Reunion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
-  if (!client) {
+  useEffect(() => {
+    Promise.all([
+      apiFetch(`/clients/${id}`),
+      apiFetch(`/meetings?client_id=${id}`),
+    ]).then(async ([clientRes, meetingsRes]) => {
+      if (clientRes.status === 404) { setNotFound(true); return; }
+      const [clientData, meetingsData] = await Promise.all([clientRes.json(), meetingsRes.json()]);
+      setClient(clientData);
+      setReunions(meetingsData);
+    }).finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
     return (
       <AppSidebar>
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-muted-foreground">Client non trouvé</p>
+          <p className="text-sm text-muted-foreground">Chargement…</p>
+        </div>
+      </AppSidebar>
+    );
+  }
+
+  if (notFound || !client) {
+    return (
+      <AppSidebar>
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-sm text-muted-foreground">Client introuvable.</p>
         </div>
       </AppSidebar>
     );
@@ -49,40 +78,27 @@ export default function ClientDetailPage({
           <MeetingAvatar name={client.nom} size={32} />
           <div>
             <h1 className="text-xl font-medium text-foreground">{client.nom}</h1>
-            <div className="flex items-center gap-3 text-[12px] text-muted-foreground">
-              <span>Créé le {formatDate(client.dateCreation)}</span>
-              {client.dateDernierContact && (
-                <>
-                  <span>·</span>
-                  <span>Dernier contact : {getRelativeDate(client.dateDernierContact)}</span>
-                </>
-              )}
-            </div>
+            <span className="text-[12px] text-muted-foreground">
+              Créé le{" "}
+              {new Date(client.date_creation).toLocaleDateString("fr-FR", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
+            </span>
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="flex items-center gap-6 ml-[52px]">
-          <div className="flex items-center gap-1.5">
-            <Calendar size={12} className="text-muted-foreground" />
-            <span className="text-[12.5px] text-foreground font-medium">
-              {reunions.length}
-            </span>
-            <span className="text-[12.5px] text-muted-foreground">
-              réunion{reunions.length > 1 ? "s" : ""}
-            </span>
-          </div>
-          {reunions.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[12.5px] text-muted-foreground">
-                Dernière : {formatDate(reunions[0].dateDebut)}
-              </span>
-            </div>
-          )}
+        <div className="flex items-center gap-1.5 ml-[52px]">
+          <Calendar size={12} className="text-muted-foreground" />
+          <span className="text-[12.5px] text-foreground font-medium">{reunions.length}</span>
+          <span className="text-[12.5px] text-muted-foreground">
+            réunion{reunions.length !== 1 ? "s" : ""}
+          </span>
         </div>
       </div>
 
-      {/* Meetings history */}
+      {/* Meetings */}
       <div className="flex-1 overflow-y-auto px-8 py-6 scrollbar-hide">
         <p className="text-[10.5px] uppercase tracking-widest font-medium text-muted-foreground mb-3 px-1">
           Historique des réunions
@@ -101,36 +117,23 @@ export default function ClientDetailPage({
                     <span className="text-[13.5px] font-medium text-foreground truncate">
                       {reunion.titre}
                     </span>
-                    <StatusDot status={reunion.statutTraitement} />
+                    <StatusDot status={reunion.statut_traitement} />
                   </div>
-                  <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
-                    <span>{formatDate(reunion.dateDebut)}</span>
-                    <span>·</span>
-                    <span>{formatTime(reunion.dateDebut)}</span>
-                    <span>·</span>
-                    <span>{formatDuration(reunion.dureeSecondes)}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="flex items-center gap-1">
-                    <Users size={12} className="text-muted-foreground" />
-                    <span className="text-[12px] text-muted-foreground">
-                      {reunion.nombreParticipants}
-                    </span>
-                  </div>
-                  <Badge variant="secondary" className="text-[11px]">
-                    {reunion.mode === "dictaphone" ? "Dictaphone" : "Visio"}
-                  </Badge>
+                  <span className="text-[12px] text-muted-foreground">
+                    {new Date(reunion.date_debut).toLocaleDateString("fr-FR", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </span>
                 </div>
               </Link>
             ))}
           </div>
         ) : (
-          <div className="text-center py-12">
-            <p className="text-sm text-muted-foreground">
-              Aucune réunion avec ce client pour le moment.
-            </p>
-          </div>
+          <p className="text-sm text-muted-foreground text-center py-12">
+            Aucune réunion avec ce client pour le moment.
+          </p>
         )}
       </div>
     </AppSidebar>

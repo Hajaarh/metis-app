@@ -80,10 +80,11 @@ async def upload_audio(
 @router.get("")
 def list_meetings(
     recherche: str | None = None,
+    client_id: str | None = None,
     user_id: str = Depends(get_current_user_id),
     repository: Repository = Depends(get_repository),
 ):
-    return repository.list_meetings(user_id, recherche)
+    return repository.list_meetings(user_id, recherche, client_id)
 
 
 @router.get("/{meeting_id}")
