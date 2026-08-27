@@ -299,9 +299,16 @@ class Repository:
         compte_rendu = (
             self.client.table(models.TABLE_COMPTE_RENDU).select("*").eq("reunion_id", reunion_id).execute()
         )
+        locuteurs = (
+            self.client.table(models.TABLE_LOCUTEUR)
+            .select("*")
+            .eq("reunion_id", reunion_id)
+            .execute()
+        )
         detail = {
             "reunion": reunion,
             "segments": segments.data,
+            "locuteurs": locuteurs.data,
             "compte_rendu": None,
             "points_cles": [],
             "decisions": [],
@@ -314,6 +321,25 @@ class Repository:
             detail["decisions"] = self.read_children(models.TABLE_DECISION, compte_rendu_id)
             detail["actions"] = self.read_children(models.TABLE_ACTION, compte_rendu_id)
         return detail
+
+    def update_locuteur_label(self, locuteur_id: str, reunion_id: str, label: str) -> dict | None:
+        reponse = (
+            self.client.table(models.TABLE_LOCUTEUR)
+            .update({"label": label})
+            .eq("id", locuteur_id)
+            .eq("reunion_id", reunion_id)
+            .execute()
+        )
+        return reponse.data[0] if reponse.data else None
+
+    def update_user_profile(self, user_id: str, duree_retention_jours: int) -> dict:
+        reponse = (
+            self.client.table(models.TABLE_UTILISATEUR)
+            .update({"duree_retention_jours": duree_retention_jours})
+            .eq("id", user_id)
+            .execute()
+        )
+        return reponse.data[0]
 
     def read_children(self, table: str, compte_rendu_id: str) -> list:
         reponse = self.client.table(table).select("*").eq("compte_rendu_id", compte_rendu_id).execute()
