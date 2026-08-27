@@ -378,8 +378,15 @@ class Repository:
             .eq("reunion_id", reunion_id)
             .execute()
         )
+        consentement = (
+            self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT)
+            .select("jeton")
+            .eq("reunion_id", reunion_id)
+            .execute()
+        )
         detail = {
             "reunion": reunion,
+            "jeton_consentement": consentement.data[0]["jeton"] if consentement.data else None,
             "segments": segments.data,
             "locuteurs": locuteurs.data,
             "compte_rendu": None,
