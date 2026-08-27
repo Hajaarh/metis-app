@@ -45,6 +45,8 @@ function formatDuration(seconds: number): string {
   return `${m} min`;
 }
 
+const TERMINAL_STATUSES: BackendStatus[] = ["termine", "erreur", "attestation_manquante", "consentement_refuse"];
+
 export default function MeetingDetailPage({
   params,
 }: {
@@ -56,12 +58,23 @@ export default function MeetingDetailPage({
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    apiFetch(`/meetings/${id}`)
-      .then(async (r) => {
-        if (r.status === 404) { setNotFound(true); return; }
-        setDetail(await r.json());
-      })
-      .finally(() => setLoading(false));
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    async function fetchDetail() {
+      const r = await apiFetch(`/meetings/${id}`);
+      if (r.status === 404) { setNotFound(true); return; }
+      const data: MeetingDetail = await r.json();
+      setDetail(data);
+      if (TERMINAL_STATUSES.includes(data.reunion.statut_traitement) && intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    }
+
+    fetchDetail().finally(() => setLoading(false));
+    intervalId = setInterval(fetchDetail, 5000);
+
+    return () => { if (intervalId) clearInterval(intervalId); };
   }, [id]);
 
   if (loading) {
