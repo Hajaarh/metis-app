@@ -4,13 +4,24 @@ import { useState, useRef } from "react";
 import { Upload, FileAudio, X } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 
-export function AudioImport() {
+interface AudioImportProps {
+  onFileChange: (file: File | null) => void;
+}
+
+export function AudioImport({ onFileChange }: AudioImportProps) {
   const [file, setFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   function handleFile(f: File) {
     setFile(f);
+    onFileChange(f);
+  }
+
+  function clearFile() {
+    setFile(null);
+    onFileChange(null);
+    if (inputRef.current) inputRef.current.value = "";
   }
 
   return (
@@ -63,12 +74,7 @@ export function AudioImport() {
               {(file.size / 1024 / 1024).toFixed(1)} Mo
             </p>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="shrink-0"
-            onClick={() => setFile(null)}
-          >
+          <Button variant="ghost" size="icon" className="shrink-0" onClick={clearFile}>
             <X size={14} />
           </Button>
         </div>

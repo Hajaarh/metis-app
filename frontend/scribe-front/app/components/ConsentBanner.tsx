@@ -3,8 +3,18 @@
 import { useState } from "react";
 import { Shield, Check } from "lucide-react";
 
-export function ConsentBanner() {
+interface ConsentBannerProps {
+  onAcceptedChange: (accepted: boolean) => void;
+}
+
+export function ConsentBanner({ onAcceptedChange }: ConsentBannerProps) {
   const [accepted, setAccepted] = useState(false);
+
+  function toggle() {
+    const next = !accepted;
+    setAccepted(next);
+    onAcceptedChange(next);
+  }
 
   return (
     <div className="rounded-xl border p-4 space-y-3">
@@ -22,7 +32,7 @@ export function ConsentBanner() {
       <label className="flex items-start gap-2.5 cursor-pointer">
         <button
           type="button"
-          onClick={() => setAccepted(!accepted)}
+          onClick={toggle}
           className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
             accepted
               ? "bg-primary border-primary"
