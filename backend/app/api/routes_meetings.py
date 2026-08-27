@@ -97,6 +97,26 @@ def get_meeting(
     return detail
 
 
+class RenommerLocuteur(BaseModel):
+    label: str
+
+
+@router.patch("/{meeting_id}/locuteurs/{locuteur_id}")
+def rename_locuteur(
+    meeting_id: str,
+    locuteur_id: str,
+    body: RenommerLocuteur,
+    user_id: str = Depends(get_current_user_id),
+    repository: Repository = Depends(get_repository),
+):
+    if repository.get_meeting(meeting_id, user_id) is None:
+        raise reunion_introuvable()
+    result = repository.update_locuteur_label(locuteur_id, meeting_id, body.label)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="locuteur introuvable")
+    return result
+
+
 @router.delete("/{meeting_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_meeting(
     meeting_id: str,
