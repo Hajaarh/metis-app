@@ -12,6 +12,7 @@ router = APIRouter(prefix="/meetings", tags=["meetings"])
 
 class NouvelleReunion(BaseModel):
     titre: str
+    client_id: str | None = None
 
 
 TYPES_AUDIO_AUTORISES = (
@@ -40,7 +41,7 @@ def create_meeting(
     user_id: str = Depends(get_current_user_id),
     repository: Repository = Depends(get_repository),
 ):
-    meeting_id = repository.create_meeting(user_id, nouvelle_reunion.titre)
+    meeting_id = repository.create_meeting(user_id, nouvelle_reunion.titre, nouvelle_reunion.client_id)
     jeton = repository.create_consent_link(meeting_id)
     return {"meeting_id": meeting_id, "jeton_consentement": jeton}
 

@@ -1,12 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { AppSidebar } from "@/app/components/AppSidebar";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { apiFetch } from "@/app/lib/api";
+
+interface Client {
+  id: string;
+  nom: string;
+  date_creation: string;
+}
 
 export default function SettingsPage() {
   const [email, setEmail] = useState("");
@@ -15,14 +22,19 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  const [clients, setClients] = useState<Client[]>([]);
+  const [newClientNom, setNewClientNom] = useState("");
+  const [addingClient, setAddingClient] = useState(false);
+
   useEffect(() => {
-    apiFetch("/account/profile")
-      .then((r) => r.json())
-      .then((data) => {
-        setEmail(data.email ?? "");
-        setRetention(data.duree_retention_jours?.toString() ?? "30");
-      })
-      .finally(() => setLoading(false));
+    Promise.all([
+      apiFetch("/account/profile").then((r) => r.json()),
+      apiFetch("/clients").then((r) => r.json()),
+    ]).then(([profile, clientList]) => {
+      setEmail(profile.email ?? "");
+      setRetention(profile.duree_retention_jours?.toString() ?? "30");
+      setClients(clientList);
+    }).finally(() => setLoading(false));
   }, []);
 
   async function handleSave() {
@@ -36,11 +48,32 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(false), 2000);
   }
 
+  async function handleAddClient() {
+    const nom = newClientNom.trim();
+    if (!nom) return;
+    setAddingClient(true);
+    const r = await apiFetch("/clients", {
+      method: "POST",
+      body: JSON.stringify({ nom }),
+    });
+    if (r.ok) {
+      const created: Client = await r.json();
+      setClients((prev) => [...prev, created]);
+      setNewClientNom("");
+    }
+    setAddingClient(false);
+  }
+
+  async function handleDeleteClient(id: string) {
+    await apiFetch(`/clients/${id}`, { method: "DELETE" });
+    setClients((prev) => prev.filter((c) => c.id !== id));
+  }
+
   return (
     <AppSidebar>
       <div className="px-8 pt-6 pb-4 shrink-0 border-b border-border">
         <h1 className="text-xl font-medium text-foreground">Paramètres</h1>
-        <p className="text-sm text-muted-foreground">Gérez votre profil et vos préférences de rétention</p>
+        <p className="text-sm text-muted-foreground">Gérez votre profil, vos clients et vos préférences</p>
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-hide">
@@ -55,6 +88,50 @@ export default function SettingsPage() {
                 <Label>Email</Label>
                 <Input value={loading ? "…" : email} disabled />
                 <p className="text-[11px] text-muted-foreground">L&apos;email ne peut pas être modifié.</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Clients</CardTitle>
+              <CardDescription>Gérez la liste de vos clients</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!loading && clients.length > 0 && (
+                <ul className="space-y-1">
+                  {clients.map((c) => (
+                    <li key={c.id} className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-muted/50">
+                      <span className="text-[13.5px] text-foreground">{c.nom}</span>
+                      <button
+                        onClick={() => handleDeleteClient(c.id)}
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                        title="Supprimer"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {!loading && clients.length === 0 && (
+                <p className="text-[13px] text-muted-foreground">Aucun client pour l&apos;instant.</p>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Nom du client"
+                  value={newClientNom}
+                  onChange={(e) => setNewClientNom(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleAddClient(); }}
+                  disabled={loading || addingClient}
+                />
+                <Button
+                  onClick={handleAddClient}
+                  disabled={loading || addingClient || !newClientNom.trim()}
+                  variant="outline"
+                >
+                  {addingClient ? "Ajout…" : "Ajouter"}
+                </Button>
               </div>
             </CardContent>
           </Card>

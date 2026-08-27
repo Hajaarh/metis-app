@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Mic, Video } from "lucide-react";
@@ -13,8 +13,12 @@ import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { apiFetch, API_URL } from "@/app/lib/api";
 import { getToken } from "@/app/lib/auth";
-import { MOCK_CLIENTS } from "@/app/lib/mock-data";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
+
+interface Client {
+  id: string;
+  nom: string;
+}
 
 type Mode = "dictaphone" | "visio";
 type BaseLegale = "consentement" | "interet_legitime";
@@ -23,6 +27,7 @@ export default function NewMeetingPage() {
   const router = useRouter();
 
   const [titre, setTitre] = useState("");
+  const [clients, setClients] = useState<Client[]>([]);
   const [clientId, setClientId] = useState<string>("");
   const [mode, setMode] = useState<Mode>("dictaphone");
   const [baseLegale, setBaseLegale] = useState<BaseLegale>("consentement");
@@ -34,6 +39,10 @@ export default function NewMeetingPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    apiFetch("/clients").then((r) => r.json()).then(setClients);
+  }, []);
 
   const audioReady =
     mode === "visio" ||
@@ -51,7 +60,7 @@ export default function NewMeetingPage() {
       // 1. Créer la réunion
       const meetingRes = await apiFetch("/meetings", {
         method: "POST",
-        body: JSON.stringify({ titre }),
+        body: JSON.stringify({ titre, client_id: clientId || null }),
       });
 
       if (!meetingRes.ok) {
@@ -133,7 +142,7 @@ export default function NewMeetingPage() {
                 <SelectValue placeholder="Sélectionner un client" />
               </SelectTrigger>
               <SelectContent>
-                {MOCK_CLIENTS.map((c) => (
+                {clients.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.nom}
                   </SelectItem>
