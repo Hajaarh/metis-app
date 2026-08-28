@@ -6,7 +6,7 @@ const AUTH_PAGES = ["/login", "/register"];
 // Pages toujours accessibles quel que soit le statut de connexion
 const ALWAYS_PUBLIC = ["/consent"];
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const token = request.cookies.get("auth_token")?.value;
   const { pathname } = request.nextUrl;
 

@@ -51,7 +51,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     apiFetch("/meetings")
-      .then((r) => r.json())
+      .then((r) => r.ok ? r.json() : [])
       .then(setReunions)
       .finally(() => setLoading(false));
   }, []);
