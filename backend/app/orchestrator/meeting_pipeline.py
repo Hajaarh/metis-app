@@ -33,7 +33,10 @@ class MeetingPipeline:
         self.repository = repository
         self.modele_llm = modele_llm
 
-    async def run(self, reunion_id: str, audio_file: bytes, file_name: str) -> MeetingIntelligence:
+    async def run(
+        self, reunion_id: str, audio_file: bytes, file_name: str,
+        langue: str = "fr", nombre_locuteurs: int | None = None,
+    ) -> MeetingIntelligence:
         if not self.repository.has_attestation(reunion_id):
             self.repository.set_meeting_status(reunion_id, models.STATUT_ATTESTATION_MANQUANTE)
             raise AttestationManquanteError(reunion_id)
@@ -42,7 +45,9 @@ class MeetingPipeline:
             raise ConsentementRefuseError(reunion_id)
         try:
             self.repository.set_meeting_status(reunion_id, models.STATUT_TRANSCRIPTION)
-            transcript = await self.transcription_provider.transcribe(reunion_id, audio_file, file_name)
+            transcript = await self.transcription_provider.transcribe(
+                reunion_id, audio_file, file_name, langue, nombre_locuteurs
+            )
             segment_ids = self.repository.save_transcript(transcript)
             duree = duree_totale(transcript)
             if duree is not None:
