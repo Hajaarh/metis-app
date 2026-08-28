@@ -14,6 +14,7 @@ export function TabCaptureRecorder({ onBlobReady }: TabCaptureRecorderProps) {
   const [error, setError] = useState("");
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const displayStreamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
 
@@ -21,9 +22,20 @@ export function TabCaptureRecorder({ onBlobReady }: TabCaptureRecorderProps) {
     setError("");
     try {
       const displayStream = await navigator.mediaDevices.getDisplayMedia({
-        video: false,
+        video: true,
         audio: true,
       });
+
+      // Stop video tracks immediately — we only need audio
+      displayStream.getVideoTracks().forEach((t) => t.stop());
+      displayStreamRef.current = displayStream;
+
+      const audioTracks = displayStream.getAudioTracks();
+      if (audioTracks.length === 0) {
+        displayStream.getTracks().forEach((t) => t.stop());
+        setError("Aucune piste audio capturée. Cochez « Partager l'audio du système » dans la boîte de dialogue.");
+        return;
+      }
 
       let recordingStream: MediaStream;
 
@@ -32,14 +44,14 @@ export function TabCaptureRecorder({ onBlobReady }: TabCaptureRecorderProps) {
         const ctx = new AudioContext();
         audioContextRef.current = ctx;
         const destination = ctx.createMediaStreamDestination();
-        ctx.createMediaStreamSource(displayStream).connect(destination);
+        ctx.createMediaStreamSource(new MediaStream(audioTracks)).connect(destination);
         ctx.createMediaStreamSource(micStream).connect(destination);
         recordingStream = destination.stream;
 
-        displayStream.getAudioTracks()[0].onended = () => stopRecording();
+        audioTracks[0].onended = () => stopRecording();
       } else {
-        recordingStream = displayStream;
-        displayStream.getAudioTracks()[0].onended = () => stopRecording();
+        recordingStream = new MediaStream(audioTracks);
+        audioTracks[0].onended = () => stopRecording();
       }
 
       chunksRef.current = [];
@@ -68,10 +80,14 @@ export function TabCaptureRecorder({ onBlobReady }: TabCaptureRecorderProps) {
 
   function stopRecording() {
     mediaRecorderRef.current?.stop();
+    displayStreamRef.current?.getTracks().forEach((t) => t.stop());
+    displayStreamRef.current = null;
     setState("done");
   }
 
   function reset() {
+    displayStreamRef.current?.getTracks().forEach((t) => t.stop());
+    displayStreamRef.current = null;
     setState("idle");
     onBlobReady(null);
   }
