@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Mic, Calendar, Users, Settings, Search, Plus, LogOut } from "lucide-react";
+import { Mic, Calendar, Users, Settings, Plus, LogOut } from "lucide-react";
 import { MeetingAvatar } from "./MeetingAvatar";
 import { clearToken } from "@/app/lib/auth";
+import { apiFetch } from "@/app/lib/api";
 
 interface AppSidebarProps {
   children?: React.ReactNode;
@@ -19,6 +21,13 @@ const NAV_ITEMS = [
 export function AppSidebar({ children }: AppSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [email, setEmail] = useState("");
+
+  useEffect(() => {
+    apiFetch("/account/profile")
+      .then((r) => r.ok ? r.json() : null)
+      .then((p) => { if (p?.email) setEmail(p.email); });
+  }, []);
 
   function handleLogout() {
     clearToken();
@@ -40,7 +49,7 @@ export function AppSidebar({ children }: AppSidebarProps) {
               <Mic size={11} color="white" strokeWidth={2.5} />
             </div>
             <span className="text-[13.5px] font-medium text-foreground tracking-tight">
-              Scribe
+              Metis
             </span>
           </div>
           <Link
@@ -49,17 +58,6 @@ export function AppSidebar({ children }: AppSidebarProps) {
           >
             <Plus size={14} strokeWidth={2} />
           </Link>
-        </div>
-
-        {/* Search */}
-        <div className="px-3 pb-3">
-          <div className="flex items-center gap-2 h-8 rounded-xl px-3 bg-sidebar-accent">
-            <Search size={12} strokeWidth={2} className="text-muted-foreground" />
-            <input
-              placeholder="Rechercher…"
-              className="flex-1 bg-transparent text-[12.5px] outline-none border-none placeholder:text-muted-foreground text-foreground"
-            />
-          </div>
         </div>
 
         <div className="h-px mx-3 mb-2 bg-sidebar-border" />
@@ -93,13 +91,10 @@ export function AppSidebar({ children }: AppSidebarProps) {
 
         {/* Profile footer */}
         <div className="px-3 py-3 flex items-center gap-2.5 border-t border-sidebar-border">
-          <MeetingAvatar name="Jordan Osei" size={26} />
+          <MeetingAvatar name={email} size={26} />
           <div className="flex-1 min-w-0">
             <p className="text-[12px] truncate font-medium text-foreground">
-              Jordan Osei
-            </p>
-            <p className="text-[11px] text-muted-foreground">
-              Plan gratuit
+              {email || "…"}
             </p>
           </div>
           <button
