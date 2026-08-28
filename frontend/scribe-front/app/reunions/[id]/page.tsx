@@ -9,6 +9,7 @@ import { TranscriptView, type Segment, type Locuteur } from "@/app/components/Tr
 import { SummaryView, type CompteRendu, type PointCle, type Decision, type Action } from "@/app/components/SummaryView";
 import { AudioRecorder } from "@/app/components/AudioRecorder";
 import { AudioImport } from "@/app/components/AudioImport";
+import { TabCaptureRecorder } from "@/app/components/TabCaptureRecorder";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
 import { Button } from "@/app/components/ui/button";
 import { apiFetch, API_URL } from "@/app/lib/api";
@@ -68,26 +69,42 @@ export default function MeetingDetailPage({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [pollingActive, setPollingActive] = useState(false);
 
+  // Chargement initial — une seule requête, sans intervalle
   useEffect(() => {
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-
-    async function fetchDetail() {
+    async function fetchOnce() {
       const r = await apiFetch(`/meetings/${id}`);
-      if (r.status === 404) { setNotFound(true); return; }
+      if (r.status === 404) { setNotFound(true); setLoading(false); return; }
       const data: MeetingDetail = await r.json();
       setDetail(data);
-      if (TERMINAL_STATUSES.includes(data.reunion.statut_traitement) && intervalId) {
-        clearInterval(intervalId);
-        intervalId = null;
+      setLoading(false);
+      // Si le traitement est déjà en cours (ex : rechargement de page), activer le polling
+      const s = data.reunion.statut_traitement;
+      if (s !== "en_attente" && !TERMINAL_STATUSES.includes(s)) {
+        setPollingActive(true);
+      }
+    }
+    fetchOnce();
+  }, [id]);
+
+  // Polling — uniquement après upload ou si déjà en traitement
+  useEffect(() => {
+    if (!pollingActive) return;
+
+    async function poll() {
+      const r = await apiFetch(`/meetings/${id}`);
+      if (r.status === 404) { setPollingActive(false); return; }
+      const data: MeetingDetail = await r.json();
+      setDetail(data);
+      if (TERMINAL_STATUSES.includes(data.reunion.statut_traitement)) {
+        setPollingActive(false);
       }
     }
 
-    fetchDetail().finally(() => setLoading(false));
-    intervalId = setInterval(fetchDetail, 5000);
-
-    return () => { if (intervalId) clearInterval(intervalId); };
-  }, [id]);
+    const intervalId = setInterval(poll, 5000);
+    return () => clearInterval(intervalId);
+  }, [pollingActive, id]);
 
   async function handleUpload() {
     const audioFile =
@@ -110,6 +127,8 @@ export default function MeetingDetailPage({
 
     if (!r.ok) {
       setUploadError("L'upload a échoué. Réessayez.");
+    } else {
+      setPollingActive(true);
     }
     setUploading(false);
   }
@@ -220,29 +239,34 @@ export default function MeetingDetailPage({
                   </p>
                 </div>
 
-                {/* Source toggle */}
-                <div className="flex items-center rounded-[10px] p-[3px] gap-0.5 bg-muted w-fit">
-                  {(["record", "import"] as const).map((value) => {
-                    const active = audioSource === value;
-                    return (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setAudioSource(value)}
-                        className={`px-3.5 py-1.5 rounded-[8px] text-[12.5px] font-medium transition-all ${
-                          active ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
-                        }`}
-                      >
-                        {value === "record" ? "Enregistrer" : "Importer"}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {audioSource === "record" ? (
-                  <AudioRecorder onBlobReady={setRecordedBlob} />
+                {reunion.mode === "visio" ? (
+                  <TabCaptureRecorder onBlobReady={setRecordedBlob} />
                 ) : (
-                  <AudioImport onFileChange={setImportedFile} />
+                  <>
+                    {/* Source toggle — dictaphone only */}
+                    <div className="flex items-center rounded-[10px] p-[3px] gap-0.5 bg-muted w-fit">
+                      {(["record", "import"] as const).map((value) => {
+                        const active = audioSource === value;
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => setAudioSource(value)}
+                            className={`px-3.5 py-1.5 rounded-[8px] text-[12.5px] font-medium transition-all ${
+                              active ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+                            }`}
+                          >
+                            {value === "record" ? "Enregistrer" : "Importer"}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {audioSource === "record" ? (
+                      <AudioRecorder onBlobReady={setRecordedBlob} />
+                    ) : (
+                      <AudioImport onFileChange={setImportedFile} />
+                    )}
+                  </>
                 )}
 
                 {uploadError && <p className="text-sm text-destructive">{uploadError}</p>}

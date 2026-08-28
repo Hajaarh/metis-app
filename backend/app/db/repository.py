@@ -107,18 +107,24 @@ class Repository:
         self.client.table(models.TABLE_CLIENT).delete().eq("id", client_id).execute()
         return True
 
-    def create_meeting(self, user_id: str, titre: str, client_id: str | None = None) -> str:
+    def create_meeting(
+        self, user_id: str, titre: str, client_id: str | None = None,
+        mode: str = models.MODE_DICTAPHONE, langue: str = "fr", nombre_locuteurs: int | None = None,
+    ) -> str:
         ligne = {
             "utilisateur_id": user_id,
-            "mode": models.MODE_DICTAPHONE,
+            "mode": mode,
             "titre": titre,
             "date_debut": now_iso(),
             "base_legale": models.BASE_LEGALE_CONSENTEMENT,
             "statut_traitement": models.STATUT_EN_ATTENTE,
             "audio_purge": False,
+            "langue": langue,
         }
         if client_id:
             ligne["client_id"] = client_id
+        if nombre_locuteurs:
+            ligne["nombre_locuteurs"] = nombre_locuteurs
         reponse = self.client.table(models.TABLE_REUNION).insert(ligne).execute()
         return reponse.data[0]["id"]
 

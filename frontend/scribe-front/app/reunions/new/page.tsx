@@ -28,6 +28,8 @@ export default function NewMeetingPage() {
   const [clientId, setClientId] = useState<string>("");
   const [mode, setMode] = useState<Mode>("dictaphone");
   const [baseLegale, setBaseLegale] = useState<BaseLegale>("consentement");
+  const [langue, setLangue] = useState("fr");
+  const [nombreLocuteurs, setNombreLocuteurs] = useState(0);
   const [consentAccepted, setConsentAccepted] = useState(false);
 
   const [loading, setLoading] = useState(false);
@@ -46,7 +48,13 @@ export default function NewMeetingPage() {
     try {
       const res = await apiFetch("/meetings", {
         method: "POST",
-        body: JSON.stringify({ titre, client_id: clientId || null }),
+        body: JSON.stringify({
+          titre,
+          client_id: clientId || null,
+          mode,
+          langue,
+          nombre_locuteurs: nombreLocuteurs > 0 ? nombreLocuteurs : null,
+        }),
       });
       if (!res.ok) { setError("Impossible de créer la réunion."); return; }
       const { meeting_id } = await res.json();
@@ -126,6 +134,50 @@ export default function NewMeetingPage() {
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Langue + nombre de locuteurs */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Langue parlée</Label>
+              <Select value={langue} onValueChange={setLangue}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[
+                    { value: "fr", label: "Français" },
+                    { value: "en", label: "English" },
+                    { value: "es", label: "Español" },
+                    { value: "de", label: "Deutsch" },
+                    { value: "it", label: "Italiano" },
+                    { value: "pt", label: "Português" },
+                    { value: "nl", label: "Nederlands" },
+                    { value: "ar", label: "العربية" },
+                  ].map(({ value, label }) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>
+                Nombre d&apos;intervenants
+                <span className="text-muted-foreground font-normal ml-1">— optionnel</span>
+              </Label>
+              <Select value={String(nombreLocuteurs)} onValueChange={(v) => setNombreLocuteurs(Number(v))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Détection auto</SelectItem>
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
