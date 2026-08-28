@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Mic, Calendar, Users, Settings, Search, Plus, LogOut } from "lucide-react";
+import { Mic, Calendar, Users, Settings, Plus, LogOut } from "lucide-react";
 import { MeetingAvatar } from "./MeetingAvatar";
 import { clearToken } from "@/app/lib/auth";
 import { apiFetch } from "@/app/lib/api";
@@ -58,17 +58,6 @@ export function AppSidebar({ children }: AppSidebarProps) {
           >
             <Plus size={14} strokeWidth={2} />
           </Link>
-        </div>
-
-        {/* Search */}
-        <div className="px-3 pb-3">
-          <div className="flex items-center gap-2 h-8 rounded-xl px-3 bg-sidebar-accent">
-            <Search size={12} strokeWidth={2} className="text-muted-foreground" />
-            <input
-              placeholder="Rechercher…"
-              className="flex-1 bg-transparent text-[12.5px] outline-none border-none placeholder:text-muted-foreground text-foreground"
-            />
-          </div>
         </div>
 
         <div className="h-px mx-3 mb-2 bg-sidebar-border" />
