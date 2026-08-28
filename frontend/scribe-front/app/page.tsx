@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Trash2 } from "lucide-react";
 import { AppSidebar } from "@/app/components/AppSidebar";
 import { StatusDot, type BackendStatus } from "@/app/components/StatusDot";
 import { Button } from "@/app/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/app/components/ui/dropdown-menu";
 import { apiFetch } from "@/app/lib/api";
 
 interface Reunion {
@@ -48,6 +49,7 @@ export default function DashboardPage() {
   const [reunions, setReunions] = useState<Reunion[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch("/meetings")
@@ -55,6 +57,15 @@ export default function DashboardPage() {
       .then(setReunions)
       .finally(() => setLoading(false));
   }, []);
+
+  async function handleDelete(id: string) {
+    setDeleting(id);
+    const r = await apiFetch(`/meetings/${id}`, { method: "DELETE" });
+    if (r.ok || r.status === 204) {
+      setReunions((prev) => prev.filter((re) => re.id !== id));
+    }
+    setDeleting(null);
+  }
 
   const filtered = reunions.filter((r) =>
     r.titre.toLowerCase().includes(search.toLowerCase())
@@ -112,12 +123,11 @@ export default function DashboardPage() {
             </p>
             <div className="space-y-1">
               {items.map((reunion) => (
-                <Link
+                <div
                   key={reunion.id}
-                  href={`/reunions/${reunion.id}`}
-                  className="flex items-center gap-4 px-4 py-3 rounded-xl transition-colors hover:bg-muted/50"
+                  className="group flex items-center gap-2 px-4 py-3 rounded-xl transition-colors hover:bg-muted/50"
                 >
-                  <div className="flex-1 min-w-0">
+                  <Link href={`/reunions/${reunion.id}`} className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="text-[13.5px] font-medium text-foreground truncate">
                         {reunion.titre}
@@ -127,8 +137,26 @@ export default function DashboardPage() {
                     <span className="text-[12px] text-muted-foreground">
                       {formatTime(reunion.date_debut)}
                     </span>
-                  </div>
-                </Link>
+                  </Link>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground">
+                        <MoreHorizontal size={15} strokeWidth={2} />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive gap-2"
+                        disabled={deleting === reunion.id}
+                        onSelect={() => handleDelete(reunion.id)}
+                      >
+                        <Trash2 size={13} />
+                        {deleting === reunion.id ? "Suppression…" : "Supprimer"}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               ))}
             </div>
           </div>
