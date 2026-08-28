@@ -69,26 +69,42 @@ export default function MeetingDetailPage({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [pollingActive, setPollingActive] = useState(false);
 
+  // Chargement initial — une seule requête, sans intervalle
   useEffect(() => {
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-
-    async function fetchDetail() {
+    async function fetchOnce() {
       const r = await apiFetch(`/meetings/${id}`);
-      if (r.status === 404) { setNotFound(true); return; }
+      if (r.status === 404) { setNotFound(true); setLoading(false); return; }
       const data: MeetingDetail = await r.json();
       setDetail(data);
-      if (TERMINAL_STATUSES.includes(data.reunion.statut_traitement) && intervalId) {
-        clearInterval(intervalId);
-        intervalId = null;
+      setLoading(false);
+      // Si le traitement est déjà en cours (ex : rechargement de page), activer le polling
+      const s = data.reunion.statut_traitement;
+      if (s !== "en_attente" && !TERMINAL_STATUSES.includes(s)) {
+        setPollingActive(true);
+      }
+    }
+    fetchOnce();
+  }, [id]);
+
+  // Polling — uniquement après upload ou si déjà en traitement
+  useEffect(() => {
+    if (!pollingActive) return;
+
+    async function poll() {
+      const r = await apiFetch(`/meetings/${id}`);
+      if (r.status === 404) { setPollingActive(false); return; }
+      const data: MeetingDetail = await r.json();
+      setDetail(data);
+      if (TERMINAL_STATUSES.includes(data.reunion.statut_traitement)) {
+        setPollingActive(false);
       }
     }
 
-    fetchDetail().finally(() => setLoading(false));
-    intervalId = setInterval(fetchDetail, 5000);
-
-    return () => { if (intervalId) clearInterval(intervalId); };
-  }, [id]);
+    const intervalId = setInterval(poll, 5000);
+    return () => clearInterval(intervalId);
+  }, [pollingActive, id]);
 
   async function handleUpload() {
     const audioFile =
@@ -111,6 +127,8 @@ export default function MeetingDetailPage({
 
     if (!r.ok) {
       setUploadError("L'upload a échoué. Réessayez.");
+    } else {
+      setPollingActive(true);
     }
     setUploading(false);
   }
