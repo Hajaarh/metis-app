@@ -49,7 +49,7 @@ export function AppSidebar({ children }: AppSidebarProps) {
               <Mic size={11} color="white" strokeWidth={2.5} />
             </div>
             <span className="text-[13.5px] font-medium text-foreground tracking-tight">
-              Scribe
+              Metis
             </span>
           </div>
           <Link
