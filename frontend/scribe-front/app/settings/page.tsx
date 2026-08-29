@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Download } from "lucide-react";
+import { Trash2, Download, Pencil } from "lucide-react";
 import { AppSidebar } from "@/app/components/AppSidebar";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
@@ -28,6 +28,8 @@ export default function SettingsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [newClientNom, setNewClientNom] = useState("");
   const [addingClient, setAddingClient] = useState(false);
+  const [renamingClientId, setRenamingClientId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
 
   const [exporting, setExporting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -74,6 +76,24 @@ export default function SettingsPage() {
   async function handleDeleteClient(id: string) {
     await apiFetch(`/clients/${id}`, { method: "DELETE" });
     setClients((prev) => prev.filter((c) => c.id !== id));
+  }
+
+  function startRenameClient(client: Client) {
+    setRenamingClientId(client.id);
+    setRenameDraft(client.nom);
+  }
+
+  async function saveRenameClient(id: string) {
+    const nom = renameDraft.trim();
+    setRenamingClientId(null);
+    if (!nom || nom === clients.find((c) => c.id === id)?.nom) return;
+    const r = await apiFetch(`/clients/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ nom }),
+    });
+    if (r.ok) {
+      setClients((prev) => prev.map((c) => c.id === id ? { ...c, nom } : c));
+    }
   }
 
   async function handleExport() {
@@ -139,14 +159,37 @@ export default function SettingsPage() {
                 <ul className="space-y-1">
                   {clients.map((c) => (
                     <li key={c.id} className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-muted/50">
-                      <span className="text-[13.5px] text-foreground">{c.nom}</span>
-                      <button
-                        onClick={() => handleDeleteClient(c.id)}
-                        className="text-muted-foreground hover:text-destructive transition-colors"
-                        title="Supprimer"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {renamingClientId === c.id ? (
+                        <input
+                          autoFocus
+                          value={renameDraft}
+                          onChange={(e) => setRenameDraft(e.target.value)}
+                          onBlur={() => saveRenameClient(c.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveRenameClient(c.id);
+                            if (e.key === "Escape") setRenamingClientId(null);
+                          }}
+                          className="flex-1 text-[13.5px] text-foreground bg-transparent border-b border-primary outline-none"
+                        />
+                      ) : (
+                        <span className="flex-1 text-[13.5px] text-foreground">{c.nom}</span>
+                      )}
+                      <div className="flex items-center gap-2 ml-2 shrink-0">
+                        <button
+                          onClick={() => startRenameClient(c)}
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                          title="Renommer"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClient(c.id)}
+                          className="text-muted-foreground hover:text-destructive transition-colors"
+                          title="Supprimer"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>
