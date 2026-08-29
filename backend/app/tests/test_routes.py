@@ -67,16 +67,30 @@ class FakeRepository:
         self.compteur = 0
         self.attestations = []
 
-    def create_meeting(self, user_id, titre):
+    def create_meeting(
+        self, user_id, titre, client_id=None, mode="dictaphone", base_legale="consentement",
+        langue="fr", nombre_locuteurs=None,
+    ):
+        import uuid as _uuid
+
         self.compteur += 1
         meeting_id = str(self.compteur)
-        self.reunions[meeting_id] = {
+        reunion = {
             "id": meeting_id,
             "utilisateur_id": user_id,
             "titre": titre,
             "statut_traitement": "en_attente",
+            "client_id": client_id,
+            "mode": mode,
+            "base_legale": base_legale,
+            "langue": langue,
+            "nombre_locuteurs": nombre_locuteurs,
+            "jeton_consentement": None,
         }
-        return meeting_id
+        if base_legale == "consentement" and mode != "dictaphone":
+            reunion["jeton_consentement"] = str(_uuid.uuid4())
+        self.reunions[meeting_id] = reunion
+        return reunion
 
     def set_audio_metadata(self, reunion_id, audio_nom_fichier, audio_taille_octets, audio_mime_type):
         self.reunions[reunion_id]["audio_nom_fichier"] = audio_nom_fichier
@@ -86,17 +100,46 @@ class FakeRepository:
     def save_attestation(self, reunion_id, user_id):
         self.attestations.append((reunion_id, user_id))
 
-    def create_consent_link(self, reunion_id):
-        self.compteur += 1
-        jeton = f"jeton-{self.compteur}"
-        self.consentements[jeton] = {"reunion_id": reunion_id, "choix": "en_attente"}
-        return jeton
+    def _reunion_par_jeton_consentement(self, jeton):
+        for reunion in self.reunions.values():
+            if reunion.get("jeton_consentement") == jeton:
+                return reunion
+        return None
 
-    def submit_participant_consent(self, jeton, accepte):
-        if jeton not in self.consentements:
-            return False
-        self.consentements[jeton]["choix"] = "accepte" if accepte else "refuse"
-        return True
+    def get_consent_context(self, jeton):
+        reunion = self._reunion_par_jeton_consentement(jeton)
+        if reunion is None:
+            return None
+        counts = self.get_consent_count(reunion["id"])
+        return {"jeton": jeton, "reunion_titre": reunion["titre"], **counts}
+
+    def get_consent_count(self, reunion_id, nombre_locuteurs=None):
+        total = self.reunions[reunion_id].get("nombre_locuteurs") or 1
+        signes = sum(
+            1 for c in self.consentements.values()
+            if c["reunion_id"] == reunion_id and c["choix"] == "accepte"
+        )
+        return {"signes": signes, "total": total}
+
+    def submit_participant_consent(self, jeton_collectif, accepte):
+        import uuid as _uuid
+
+        reunion = self._reunion_par_jeton_consentement(jeton_collectif)
+        if reunion is None:
+            return None
+        jeton_retractation = str(_uuid.uuid4())
+        self.consentements[jeton_retractation] = {
+            "reunion_id": reunion["id"],
+            "choix": "accepte" if accepte else "refuse",
+        }
+        return {"reunion_id": reunion["id"], "jeton_retractation": jeton_retractation}
+
+    def retract_consent(self, jeton_retractation):
+        consentement = self.consentements.get(jeton_retractation)
+        if consentement is None:
+            return None
+        consentement["choix"] = "refuse"
+        return consentement["reunion_id"]
 
     def has_refused_consent(self, reunion_id):
         return any(
@@ -104,7 +147,7 @@ class FakeRepository:
             for consentement in self.consentements.values()
         )
 
-    def list_meetings(self, user_id, recherche=None):
+    def list_meetings(self, user_id, recherche=None, client_id=None):
         reunions = [reunion for reunion in self.reunions.values() if reunion["utilisateur_id"] == user_id]
         if recherche:
             reunions = [reunion for reunion in reunions if recherche.lower() in reunion["titre"].lower()]
@@ -170,7 +213,7 @@ class FakePipeline:
     def __init__(self):
         self.appels = []
 
-    async def run(self, reunion_id, audio_file, file_name):
+    async def run(self, reunion_id, audio_file, file_name, langue="fr", nombre_locuteurs=None):
         self.appels.append((reunion_id, file_name))
 
 
@@ -200,8 +243,8 @@ def client(fake_repository, fake_pipeline, fake_supabase_client):
     app.dependency_overrides.clear()
 
 
-def creer_reunion(client, titre="reunion test"):
-    return client.post("/meetings", json={"titre": titre})
+def creer_reunion(client, titre="reunion test", mode="dictaphone"):
+    return client.post("/meetings", json={"titre": titre, "mode": mode})
 
 
 def uploader_audio(client, meeting_id, consentement_organisateur=True, content_type="audio/wav"):
@@ -240,11 +283,17 @@ def test_login_identifiants_invalides(client):
 
 
 def test_creer_reunion_genere_un_jeton_de_consentement(client):
-    reponse = creer_reunion(client)
+    reponse = creer_reunion(client, mode="visio")
     assert reponse.status_code == 201
     corps = reponse.json()
     assert corps["meeting_id"]
     assert corps["jeton_consentement"]
+
+
+def test_creer_reunion_dictaphone_ne_genere_pas_de_jeton(client):
+    reponse = creer_reunion(client, mode="dictaphone")
+    assert reponse.status_code == 201
+    assert reponse.json()["jeton_consentement"] is None
 
 
 def test_upload_audio_meeting_introuvable(client):
@@ -276,13 +325,13 @@ def test_upload_audio_accepte(client, fake_repository, fake_pipeline):
 
 
 def test_consentement_participant_accepte(client):
-    jeton = creer_reunion(client).json()["jeton_consentement"]
+    jeton = creer_reunion(client, mode="visio").json()["jeton_consentement"]
     reponse = client.post(f"/consent/{jeton}", json={"accepte": True})
     assert reponse.status_code == 200
 
 
 def test_consentement_participant_refuse(client):
-    jeton = creer_reunion(client).json()["jeton_consentement"]
+    jeton = creer_reunion(client, mode="visio").json()["jeton_consentement"]
     reponse = client.post(f"/consent/{jeton}", json={"accepte": False})
     assert reponse.status_code == 200
 
