@@ -47,6 +47,8 @@ services:
       - ENV=dev
       - GLADIA_API_KEY=${GLADIA_API_KEY}
       - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
     ports:
       - "8000:8000"
     volumes:

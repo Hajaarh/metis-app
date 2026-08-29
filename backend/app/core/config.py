@@ -6,7 +6,7 @@ class Settings(BaseSettings):
 
     gladia_api_key: str = ""
     mistral_api_key: str = ""
-    mistral_model: str = "mistral-large-latest"
+    mistral_model: str = "mistral-small-latest"
     supabase_url: str = ""
     supabase_service_key: str = ""
     max_upload_mb: int = 1024

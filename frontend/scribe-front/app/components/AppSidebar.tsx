@@ -1,9 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Mic, Calendar, Users, Settings, Search, Plus, ChevronRight } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Mic, Calendar, Users, Settings, Plus, LogOut, BarChart2, Menu } from "lucide-react";
 import { MeetingAvatar } from "./MeetingAvatar";
+import { clearToken } from "@/app/lib/auth";
+import { apiFetch } from "@/app/lib/api";
 
 interface AppSidebarProps {
   children?: React.ReactNode;
@@ -11,17 +14,40 @@ interface AppSidebarProps {
 
 const NAV_ITEMS = [
   { href: "/", label: "Réunions", icon: Calendar },
+  { href: "/dashboard", label: "Tableau de bord", icon: BarChart2 },
   { href: "/clients", label: "Clients", icon: Users },
   { href: "/settings", label: "Paramètres", icon: Settings },
 ];
 
 export function AppSidebar({ children }: AppSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    apiFetch("/account/profile")
+      .then((r) => r.ok ? r.json() : null)
+      .then((p) => { if (p?.email) setEmail(p.email); });
+  }, []);
+
+  function handleLogout() {
+    clearToken();
+    router.push("/login");
+  }
 
   return (
     <div className="flex h-screen bg-background">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-10 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       <aside
-        className="flex flex-col shrink-0 h-full border-r border-sidebar-border"
+        className={`fixed left-0 top-0 z-20 flex flex-col h-full border-r border-sidebar-border transition-transform duration-200 lg:relative lg:translate-x-0 lg:z-auto ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
         style={{ width: 240, background: "var(--sidebar)" }}
       >
         {/* Logo */}
@@ -33,7 +59,7 @@ export function AppSidebar({ children }: AppSidebarProps) {
               <Mic size={11} color="white" strokeWidth={2.5} />
             </div>
             <span className="text-[13.5px] font-medium text-foreground tracking-tight">
-              Scribe
+              Metis
             </span>
           </div>
           <Link
@@ -42,17 +68,6 @@ export function AppSidebar({ children }: AppSidebarProps) {
           >
             <Plus size={14} strokeWidth={2} />
           </Link>
-        </div>
-
-        {/* Search */}
-        <div className="px-3 pb-3">
-          <div className="flex items-center gap-2 h-8 rounded-xl px-3 bg-sidebar-accent">
-            <Search size={12} strokeWidth={2} className="text-muted-foreground" />
-            <input
-              placeholder="Rechercher…"
-              className="flex-1 bg-transparent text-[12.5px] outline-none border-none placeholder:text-muted-foreground text-foreground"
-            />
-          </div>
         </div>
 
         <div className="h-px mx-3 mb-2 bg-sidebar-border" />
@@ -65,6 +80,7 @@ export function AppSidebar({ children }: AppSidebarProps) {
               <Link
                 key={href}
                 href={href}
+                onClick={() => setSidebarOpen(false)}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-colors relative ${
                   isActive
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
@@ -86,21 +102,34 @@ export function AppSidebar({ children }: AppSidebarProps) {
 
         {/* Profile footer */}
         <div className="px-3 py-3 flex items-center gap-2.5 border-t border-sidebar-border">
-          <MeetingAvatar name="Jordan Osei" size={26} />
+          <MeetingAvatar name={email} size={26} />
           <div className="flex-1 min-w-0">
             <p className="text-[12px] truncate font-medium text-foreground">
-              Jordan Osei
-            </p>
-            <p className="text-[11px] text-muted-foreground">
-              Plan gratuit
+              {email || "…"}
             </p>
           </div>
-          <ChevronRight size={12} className="text-muted-foreground" />
+          <button
+            onClick={handleLogout}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            title="Se déconnecter"
+          >
+            <LogOut size={14} strokeWidth={2} />
+          </button>
         </div>
       </aside>
 
       {/* Main content */}
       <main className="flex-1 flex flex-col overflow-hidden bg-background">
+        {/* Mobile top bar */}
+        <div className="lg:hidden flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Menu size={18} />
+          </button>
+          <span className="text-sm font-medium text-foreground">Metis</span>
+        </div>
         {children}
       </main>
     </div>
