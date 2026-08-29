@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, ListTodo, Video, Clock } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  AreaChart, Area,
+  AreaChart, Area, Cell,
 } from "recharts";
 import { AppSidebar } from "@/app/components/AppSidebar";
 import { apiFetch } from "@/app/lib/api";
