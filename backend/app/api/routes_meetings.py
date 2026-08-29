@@ -66,7 +66,7 @@ async def upload_audio(
     meeting = repository.get_meeting(meeting_id, user_id)
     if meeting is None:
         raise reunion_introuvable()
-    if file.content_type not in TYPES_AUDIO_AUTORISES:
+    if file.content_type.split(";")[0].strip() not in TYPES_AUDIO_AUTORISES:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="format audio non supporte"
         )
