@@ -136,32 +136,55 @@ export default function ConsentPage({
 
   return (
     <ConsentShell>
-      <h2 className="text-lg font-medium text-foreground mb-2 text-center">
+      <h2 className="text-lg font-medium text-foreground mb-1 text-center">
         Demande de consentement
       </h2>
       <p className="text-sm text-muted-foreground text-center mb-6">
         Vous êtes invité(e) à participer à la réunion{" "}
         <strong className="text-foreground">{context.reunion_titre}</strong>.
-        Cette réunion sera enregistrée et transcrite. Donnez-vous votre accord ?
+        Donnez-vous votre accord pour qu&apos;elle soit enregistrée et transcrite ?
       </p>
-      <div className="rounded-xl bg-accent p-4 mb-6">
-        <p className="text-[12.5px] text-accent-foreground leading-relaxed">
-          Conformément au RGPD, votre consentement est nécessaire avant tout enregistrement.
-          Vous pouvez rétracter votre accord à tout moment depuis cette page.
-        </p>
-      </div>
-      <div className="flex gap-3 justify-center">
+
+      <ul className="w-full space-y-2.5 mb-6">
+        {[
+          "L'audio est capté, transcrit et un compte rendu est généré sans identifier qui vous êtes à partir de votre voix.",
+          "L'audio brut est supprimé dès que le compte rendu est produit.",
+          "Vous pouvez refuser à tout moment, avant ou pendant la réunion.",
+          "Vous gardez vos droits d'accès, de rectification et de suppression sur ce qui vous concerne.",
+        ].map((mention, i) => (
+          <li key={i} className="flex items-start gap-2.5 text-[12.5px] text-muted-foreground">
+            <span className="mt-[5px] w-1 h-1 rounded-full shrink-0 bg-muted-foreground/50" />
+            {mention}
+          </li>
+        ))}
+      </ul>
+
+      <div className="flex gap-3 justify-center w-full mb-5">
         <Button
           variant="outline"
           onClick={() => handleSubmit(false)}
           disabled={submitting}
+          className="flex-1"
         >
           Je refuse
         </Button>
-        <Button onClick={() => handleSubmit(true)} disabled={submitting}>
+        <Button onClick={() => handleSubmit(true)} disabled={submitting} className="flex-1">
           {submitting ? "Enregistrement…" : "J'accepte"}
         </Button>
       </div>
+
+      <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
+        Votre réponse est horodatée et conservée comme preuve de votre consentement ou de votre refus.
+      </p>
+
+      <a
+        href="https://www.cnil.fr/fr/les-droits-pour-maitriser-vos-donnees-personnelles"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-3 text-[11.5px] text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+      >
+        En savoir plus sur vos droits ·
+      </a>
     </ConsentShell>
   );
 }
