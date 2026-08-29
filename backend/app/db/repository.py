@@ -408,6 +408,12 @@ class Repository:
             detail["actions"] = self.read_children(models.TABLE_ACTION, compte_rendu_id)
         return detail
 
+    def rename_meeting(self, reunion_id: str, user_id: str, titre: str) -> dict | None:
+        if self.get_meeting(reunion_id, user_id) is None:
+            return None
+        self._update_meeting(reunion_id, {"titre": titre})
+        return self.get_meeting(reunion_id, user_id)
+
     def update_locuteur_label(self, locuteur_id: str, reunion_id: str, label: str) -> dict | None:
         reponse = (
             self.client.table(models.TABLE_LOCUTEUR)

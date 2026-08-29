@@ -109,6 +109,25 @@ def get_meeting(
     return detail
 
 
+class RenommerReunion(BaseModel):
+    titre: str
+
+
+@router.patch("/{meeting_id}")
+def rename_meeting(
+    meeting_id: str,
+    body: RenommerReunion,
+    user_id: str = Depends(get_current_user_id),
+    repository: Repository = Depends(get_repository),
+):
+    if not body.titre.strip():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="titre invalide")
+    result = repository.rename_meeting(meeting_id, user_id, body.titre.strip())
+    if result is None:
+        raise reunion_introuvable()
+    return result
+
+
 class RenommerLocuteur(BaseModel):
     label: str
 
