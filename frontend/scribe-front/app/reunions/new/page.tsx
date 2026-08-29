@@ -39,7 +39,7 @@ export default function NewMeetingPage() {
     apiFetch("/clients").then((r) => r.json()).then(setClients);
   }, []);
 
-  const canSubmit = titre.trim() && consentAccepted && !loading;
+  const canSubmit = titre.trim() && (mode === "visio" || consentAccepted) && !loading;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -213,7 +213,7 @@ export default function NewMeetingPage() {
           </div>
 
           {/* Consent */}
-          <ConsentBanner onAcceptedChange={setConsentAccepted} />
+          {mode === "dictaphone" && <ConsentBanner onAcceptedChange={setConsentAccepted} />}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
