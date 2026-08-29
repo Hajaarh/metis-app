@@ -109,20 +109,27 @@ def get_meeting(
     return detail
 
 
-class RenommerReunion(BaseModel):
-    titre: str
+class ModifierReunion(BaseModel):
+    titre: str | None = None
+    client_id: str | None = None
 
 
 @router.patch("/{meeting_id}")
-def rename_meeting(
+def modifier_reunion(
     meeting_id: str,
-    body: RenommerReunion,
+    body: ModifierReunion,
     user_id: str = Depends(get_current_user_id),
     repository: Repository = Depends(get_repository),
 ):
-    if not body.titre.strip():
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="titre invalide")
-    result = repository.rename_meeting(meeting_id, user_id, body.titre.strip())
+    if "titre" in body.model_fields_set:
+        if not body.titre or not body.titre.strip():
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="titre invalide")
+        if repository.rename_meeting(meeting_id, user_id, body.titre.strip()) is None:
+            raise reunion_introuvable()
+    if "client_id" in body.model_fields_set:
+        if repository.update_meeting_client(meeting_id, user_id, body.client_id) is None:
+            raise reunion_introuvable()
+    result = repository.get_meeting(meeting_id, user_id)
     if result is None:
         raise reunion_introuvable()
     return result

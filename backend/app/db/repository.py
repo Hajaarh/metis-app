@@ -414,6 +414,12 @@ class Repository:
         self._update_meeting(reunion_id, {"titre": titre})
         return self.get_meeting(reunion_id, user_id)
 
+    def update_meeting_client(self, reunion_id: str, user_id: str, client_id: str | None) -> dict | None:
+        if self.get_meeting(reunion_id, user_id) is None:
+            return None
+        self._update_meeting(reunion_id, {"client_id": client_id})
+        return self.get_meeting(reunion_id, user_id)
+
     def update_locuteur_label(self, locuteur_id: str, reunion_id: str, label: str) -> dict | None:
         reponse = (
             self.client.table(models.TABLE_LOCUTEUR)
