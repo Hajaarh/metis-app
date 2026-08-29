@@ -127,7 +127,7 @@ class Repository:
             ligne["client_id"] = client_id
         if nombre_locuteurs:
             ligne["nombre_locuteurs"] = nombre_locuteurs
-        if base_legale == models.BASE_LEGALE_CONSENTEMENT:
+        if base_legale == models.BASE_LEGALE_CONSENTEMENT and mode != models.MODE_DICTAPHONE:
             ligne["jeton_consentement"] = str(_uuid.uuid4())
         reponse = self.client.table(models.TABLE_REUNION).insert(ligne).execute()
         return reponse.data[0]
