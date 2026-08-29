@@ -160,7 +160,7 @@ export default function DashboardPage() {
                         <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                         <Tooltip
                           {...TOOLTIP_STYLE}
-                          formatter={(v: number) => [v, "réunions"]}
+                          formatter={(v) => [v as number, "réunions"]}
                         />
                         <Bar dataKey="nombre" fill={COLORS[0]} radius={[4, 4, 0, 0]} />
                       </BarChart>
@@ -187,7 +187,7 @@ export default function DashboardPage() {
                         <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} />
                         <Tooltip
                           {...TOOLTIP_STYLE}
-                          formatter={(v: number) => [`${v}h`, "durée"]}
+                          formatter={(v) => [`${v as number}h`, "durée"]}
                         />
                         <Area
                           type="monotone"
@@ -215,7 +215,7 @@ export default function DashboardPage() {
                         <YAxis type="category" dataKey="type" tick={AXIS_TICK} axisLine={false} tickLine={false} width={100} />
                         <Tooltip
                           {...TOOLTIP_STYLE}
-                          formatter={(v: number) => [`${v}h`, "durée"]}
+                          formatter={(v) => [`${v as number}h`, "durée"]}
                         />
                         <Bar dataKey="heures" radius={[0, 4, 4, 0]}>
                           {dureParTypeData.map((_, i) => (
@@ -253,7 +253,7 @@ export default function DashboardPage() {
                           </Pie>
                           <Tooltip
                             {...TOOLTIP_STYLE}
-                            formatter={(v: number) => [formatDuration(v), "temps de parole"]}
+                            formatter={(v) => [formatDuration(v as number), "temps de parole"]}
                           />
                         </PieChart>
                       </ResponsiveContainer>
