@@ -25,9 +25,13 @@ def build_pipeline(transcription=None, llm=None):
     return pipeline, repository, transcription, llm
 
 
+def creer_reunion(repository, mode=models.MODE_DICTAPHONE):
+    return repository.create_meeting("u1", "reunion test", mode=mode)
+
+
 def test_pipeline_bloque_sans_attestation():
     pipeline, repository, transcription, llm = build_pipeline()
-    meeting_id = repository.create_meeting("u1", "reunion test")
+    meeting_id = creer_reunion(repository)["id"]
 
     with pytest.raises(AttestationManquanteError):
         asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
@@ -39,10 +43,10 @@ def test_pipeline_bloque_sans_attestation():
 
 def test_pipeline_bloque_si_consentement_refuse():
     pipeline, repository, transcription, llm = build_pipeline()
-    meeting_id = repository.create_meeting("u1", "reunion test")
+    reunion_creee = creer_reunion(repository, mode="visio")
+    meeting_id = reunion_creee["id"]
     repository.save_attestation(meeting_id, "u1")
-    jeton = repository.create_consent_link(meeting_id)
-    repository.submit_participant_consent(jeton, accepte=False)
+    repository.submit_participant_consent(reunion_creee["jeton_consentement"], accepte=False)
 
     with pytest.raises(ConsentementRefuseError):
         asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
@@ -54,9 +58,8 @@ def test_pipeline_bloque_si_consentement_refuse():
 
 def test_pipeline_traite_si_consentement_en_attente():
     pipeline, repository, transcription, llm = build_pipeline()
-    meeting_id = repository.create_meeting("u1", "reunion test")
+    meeting_id = creer_reunion(repository, mode="visio")["id"]
     repository.save_attestation(meeting_id, "u1")
-    repository.create_consent_link(meeting_id)
 
     asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
 
@@ -67,10 +70,10 @@ def test_pipeline_traite_si_consentement_en_attente():
 
 def test_pipeline_traite_si_consentement_accepte():
     pipeline, repository, transcription, llm = build_pipeline()
-    meeting_id = repository.create_meeting("u1", "reunion test")
+    reunion_creee = creer_reunion(repository, mode="visio")
+    meeting_id = reunion_creee["id"]
     repository.save_attestation(meeting_id, "u1")
-    jeton = repository.create_consent_link(meeting_id)
-    repository.submit_participant_consent(jeton, accepte=True)
+    repository.submit_participant_consent(reunion_creee["jeton_consentement"], accepte=True)
 
     intelligence = asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
 
@@ -83,7 +86,7 @@ def test_pipeline_traite_si_consentement_accepte():
 def test_pipeline_enregistre_le_message_derreur():
     transcription = FakeTranscriptionProvider(erreur=RuntimeError("gladia indisponible"))
     pipeline, repository, transcription, llm = build_pipeline(transcription=transcription)
-    meeting_id = repository.create_meeting("u1", "reunion test")
+    meeting_id = creer_reunion(repository)["id"]
     repository.save_attestation(meeting_id, "u1")
 
     with pytest.raises(RuntimeError):
@@ -96,7 +99,7 @@ def test_pipeline_enregistre_le_message_derreur():
 
 def test_pipeline_transitionne_par_chaque_statut_attendu():
     pipeline, repository, transcription, llm = build_pipeline()
-    meeting_id = repository.create_meeting("u1", "reunion test")
+    meeting_id = creer_reunion(repository)["id"]
     repository.save_attestation(meeting_id, "u1")
 
     asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
@@ -109,7 +112,7 @@ def test_pipeline_transitionne_par_chaque_statut_attendu():
 def test_pipeline_erreur_a_l_analyse_conserve_la_transcription_deja_enregistree():
     llm = FakeLLMProvider(erreur=RuntimeError("mistral indisponible"))
     pipeline, repository, transcription, llm = build_pipeline(llm=llm)
-    meeting_id = repository.create_meeting("u1", "reunion test")
+    meeting_id = creer_reunion(repository)["id"]
     repository.save_attestation(meeting_id, "u1")
 
     with pytest.raises(RuntimeError):
@@ -127,7 +130,7 @@ def test_pipeline_erreur_a_l_analyse_conserve_la_transcription_deja_enregistree(
 
 def test_pipeline_purge_automatiquement_l_audio_apres_le_compte_rendu():
     pipeline, repository, transcription, llm = build_pipeline()
-    meeting_id = repository.create_meeting("u1", "reunion test")
+    meeting_id = creer_reunion(repository)["id"]
     repository.save_attestation(meeting_id, "u1")
 
     asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
@@ -140,7 +143,7 @@ def test_pipeline_purge_automatiquement_l_audio_apres_le_compte_rendu():
 def test_pipeline_ne_purge_pas_si_l_analyse_echoue():
     llm = FakeLLMProvider(erreur=RuntimeError("mistral indisponible"))
     pipeline, repository, transcription, llm = build_pipeline(llm=llm)
-    meeting_id = repository.create_meeting("u1", "reunion test")
+    meeting_id = creer_reunion(repository)["id"]
     repository.save_attestation(meeting_id, "u1")
 
     with pytest.raises(RuntimeError):
@@ -162,7 +165,7 @@ def test_pipeline_enregistre_le_type_de_reunion_classifie():
     )
     llm = FakeLLMProvider(intelligence=intelligence)
     pipeline, repository, transcription, llm = build_pipeline(llm=llm)
-    meeting_id = repository.create_meeting("u1", "reunion test")
+    meeting_id = creer_reunion(repository)["id"]
     repository.save_attestation(meeting_id, "u1")
 
     asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
@@ -182,7 +185,7 @@ def test_pipeline_enregistre_la_valeur_de_repli_si_type_non_determine():
     )
     llm = FakeLLMProvider(intelligence=intelligence)
     pipeline, repository, transcription, llm = build_pipeline(llm=llm)
-    meeting_id = repository.create_meeting("u1", "reunion test")
+    meeting_id = creer_reunion(repository)["id"]
     repository.save_attestation(meeting_id, "u1")
 
     asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
@@ -193,7 +196,7 @@ def test_pipeline_enregistre_la_valeur_de_repli_si_type_non_determine():
 
 def test_pipeline_relie_les_actions_et_decisions_a_leur_segment_source():
     pipeline, repository, transcription, llm = build_pipeline()
-    meeting_id = repository.create_meeting("u1", "reunion test")
+    meeting_id = creer_reunion(repository)["id"]
     repository.save_attestation(meeting_id, "u1")
 
     pipeline.transcription_provider = FakeTranscriptionProvider(
@@ -227,10 +230,10 @@ def test_pipeline_relie_les_actions_et_decisions_a_leur_segment_source():
 
 def test_pipeline_parcours_complet_jusqu_au_compte_rendu():
     pipeline, repository, transcription, llm = build_pipeline()
-    meeting_id = repository.create_meeting("u1", "reunion test")
+    reunion_creee = creer_reunion(repository, mode="visio")
+    meeting_id = reunion_creee["id"]
     repository.save_attestation(meeting_id, "u1")
-    jeton = repository.create_consent_link(meeting_id)
-    repository.submit_participant_consent(jeton, accepte=True)
+    repository.submit_participant_consent(reunion_creee["jeton_consentement"], accepte=True)
 
     asyncio.run(pipeline.run(meeting_id, b"audio", "reunion.wav"))
 

@@ -233,6 +233,9 @@ def test_dashboard_metrics_sans_aucune_reunion():
         "duree_totale_secondes": 0,
         "repartition_par_type": {},
         "repartition_par_theme": {},
+        "duree_par_type": {},
+        "temps_parole": {},
+        "par_mois": [],
     }
 
 
@@ -328,15 +331,27 @@ def test_dashboard_metrics_repartition_par_theme():
 
 def test_create_meeting_sans_metadonnees_audio():
     repo = repository()
-    meeting_id = repo.create_meeting("u1", "reunion test")
+    meeting_id = repo.create_meeting("u1", "reunion test")["id"]
     ligne = repo.client.tables[models.TABLE_REUNION].lignes[0]
     assert ligne["id"] == meeting_id
     assert "audio_nom_fichier" not in ligne
 
 
+def test_create_meeting_dictaphone_ne_genere_pas_de_jeton_consentement():
+    repo = repository()
+    reunion = repo.create_meeting("u1", "reunion test")
+    assert reunion.get("jeton_consentement") is None
+
+
+def test_create_meeting_visio_genere_un_jeton_consentement():
+    repo = repository()
+    reunion = repo.create_meeting("u1", "reunion test", mode="visio")
+    assert reunion["jeton_consentement"]
+
+
 def test_set_audio_metadata_renseigne_la_reunion():
     repo = repository()
-    meeting_id = repo.create_meeting("u1", "reunion test")
+    meeting_id = repo.create_meeting("u1", "reunion test")["id"]
     repo.set_audio_metadata(meeting_id, "reunion.wav", 12345, "audio/wav")
     ligne = repo.client.tables[models.TABLE_REUNION].lignes[0]
     assert ligne["audio_nom_fichier"] == "reunion.wav"
@@ -344,31 +359,20 @@ def test_set_audio_metadata_renseigne_la_reunion():
     assert ligne["audio_mime_type"] == "audio/wav"
 
 
-def test_create_consent_link_genere_un_jeton_en_attente():
-    repo = repository()
-    meeting_id = repo.create_meeting("u1", "reunion test")
-    jeton = repo.create_consent_link(meeting_id)
-    ligne = repo.client.tables[models.TABLE_CONSENTEMENT_PARTICIPANT].lignes[0]
-    assert ligne["jeton"] == jeton
-    assert ligne["reunion_id"] == meeting_id
-    assert ligne["choix"] == models.CHOIX_EN_ATTENTE
-
-
 def test_submit_participant_consent_accepte():
     repo = repository()
-    meeting_id = repo.create_meeting("u1", "reunion test")
-    jeton = repo.create_consent_link(meeting_id)
-    resultat = repo.submit_participant_consent(jeton, accepte=True)
-    assert resultat is True
+    reunion = repo.create_meeting("u1", "reunion test", mode="visio")
+    resultat = repo.submit_participant_consent(reunion["jeton_consentement"], accepte=True)
+    assert resultat["reunion_id"] == reunion["id"]
+    assert resultat["jeton_retractation"]
     ligne = repo.client.tables[models.TABLE_CONSENTEMENT_PARTICIPANT].lignes[0]
     assert ligne["choix"] == models.CHOIX_ACCEPTE
 
 
 def test_submit_participant_consent_refuse():
     repo = repository()
-    meeting_id = repo.create_meeting("u1", "reunion test")
-    jeton = repo.create_consent_link(meeting_id)
-    repo.submit_participant_consent(jeton, accepte=False)
+    reunion = repo.create_meeting("u1", "reunion test", mode="visio")
+    repo.submit_participant_consent(reunion["jeton_consentement"], accepte=False)
     ligne = repo.client.tables[models.TABLE_CONSENTEMENT_PARTICIPANT].lignes[0]
     assert ligne["choix"] == models.CHOIX_REFUSE
 
@@ -376,27 +380,40 @@ def test_submit_participant_consent_refuse():
 def test_submit_participant_consent_jeton_inconnu():
     repo = repository()
     resultat = repo.submit_participant_consent("jeton-bidon", accepte=True)
-    assert resultat is False
+    assert resultat is None
+
+
+def test_retract_consent_repasse_le_choix_a_refuse():
+    repo = repository()
+    reunion = repo.create_meeting("u1", "reunion test", mode="visio")
+    resultat = repo.submit_participant_consent(reunion["jeton_consentement"], accepte=True)
+    reunion_id = repo.retract_consent(resultat["jeton_retractation"])
+    assert reunion_id == reunion["id"]
+    ligne = repo.client.tables[models.TABLE_CONSENTEMENT_PARTICIPANT].lignes[0]
+    assert ligne["choix"] == models.CHOIX_REFUSE
+
+
+def test_retract_consent_jeton_inconnu():
+    repo = repository()
+    assert repo.retract_consent("jeton-bidon") is None
 
 
 def test_has_refused_consent_vrai_si_refuse():
     repo = repository()
-    meeting_id = repo.create_meeting("u1", "reunion test")
-    jeton = repo.create_consent_link(meeting_id)
-    repo.submit_participant_consent(jeton, accepte=False)
-    assert repo.has_refused_consent(meeting_id) is True
+    reunion = repo.create_meeting("u1", "reunion test", mode="visio")
+    repo.submit_participant_consent(reunion["jeton_consentement"], accepte=False)
+    assert repo.has_refused_consent(reunion["id"]) is True
 
 
 def test_has_refused_consent_faux_si_en_attente_ou_accepte():
     repo = repository()
-    meeting_id = repo.create_meeting("u1", "reunion test")
-    repo.create_consent_link(meeting_id)
-    assert repo.has_refused_consent(meeting_id) is False
+    reunion = repo.create_meeting("u1", "reunion test", mode="visio")
+    assert repo.has_refused_consent(reunion["id"]) is False
 
 
 def test_set_meeting_error_enregistre_statut_et_message():
     repo = repository()
-    meeting_id = repo.create_meeting("u1", "reunion test")
+    meeting_id = repo.create_meeting("u1", "reunion test")["id"]
     repo.set_meeting_error(meeting_id, "gladia indisponible")
     ligne = repo.client.tables[models.TABLE_REUNION].lignes[0]
     assert ligne["statut_traitement"] == models.STATUT_ERREUR
@@ -405,7 +422,7 @@ def test_set_meeting_error_enregistre_statut_et_message():
 
 def test_set_meeting_status_efface_le_message_derreur_precedent():
     repo = repository()
-    meeting_id = repo.create_meeting("u1", "reunion test")
+    meeting_id = repo.create_meeting("u1", "reunion test")["id"]
     repo.set_meeting_error(meeting_id, "gladia indisponible")
     repo.set_meeting_status(meeting_id, models.STATUT_TRANSCRIPTION)
     ligne = repo.client.tables[models.TABLE_REUNION].lignes[0]
@@ -415,7 +432,7 @@ def test_set_meeting_status_efface_le_message_derreur_precedent():
 
 def test_save_attestation_ignore_les_appels_repetes():
     repo = repository()
-    meeting_id = repo.create_meeting("u1", "reunion test")
+    meeting_id = repo.create_meeting("u1", "reunion test")["id"]
     repo.save_attestation(meeting_id, "u1")
     repo.save_attestation(meeting_id, "u1")
     lignes = repo.client.tables[models.TABLE_ATTESTATION].lignes
