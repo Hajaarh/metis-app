@@ -347,7 +347,7 @@ class Repository:
     def list_meetings(self, user_id: str, recherche: str | None = None, client_id: str | None = None) -> list:
         requete = (
             self.client.table(models.TABLE_REUNION)
-            .select("id, titre, statut_traitement, date_debut")
+            .select("id, titre, statut_traitement, date_debut, type_reunion")
             .eq("utilisateur_id", user_id)
         )
         if recherche:
