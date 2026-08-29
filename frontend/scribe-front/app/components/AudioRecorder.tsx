@@ -32,6 +32,17 @@ export function AudioRecorder({ onBlobReady, forceStop }: AudioRecorderProps) {
   const seconds = elapsed % 60;
   const timeStr = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 
+  function getSupportedMimeType(): string {
+    const candidates = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/mp4",
+      "audio/ogg;codecs=opus",
+      "audio/ogg",
+    ];
+    return candidates.find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
+  }
+
   async function startRecording() {
     setError("");
     try {
@@ -39,7 +50,10 @@ export function AudioRecorder({ onBlobReady, forceStop }: AudioRecorderProps) {
       streamRef.current = stream;
       chunksRef.current = [];
 
-      const recorder = new MediaRecorder(stream);
+      const mimeType = getSupportedMimeType();
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (e) => {
@@ -47,12 +61,13 @@ export function AudioRecorder({ onBlobReady, forceStop }: AudioRecorderProps) {
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const type = mimeType || recorder.mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type });
         onBlobReady(blob);
         streamRef.current?.getTracks().forEach((t) => t.stop());
       };
 
-      recorder.start();
+      recorder.start(1000);
       setState("recording");
     } catch {
       setError("Impossible d'accéder au microphone. Vérifiez les permissions.");
