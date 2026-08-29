@@ -71,13 +71,13 @@ export default function SettingsPage() {
 
   return (
     <AppSidebar>
-      <div className="px-8 pt-6 pb-4 shrink-0 border-b border-border">
+      <div className="px-4 sm:px-8 pt-6 pb-4 shrink-0 border-b border-border">
         <h1 className="text-xl font-medium text-foreground">Paramètres</h1>
         <p className="text-sm text-muted-foreground">Gérez votre profil, vos clients et vos préférences</p>
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-hide">
-        <div className="max-w-[600px] mx-auto px-8 py-8 space-y-6">
+        <div className="max-w-[600px] mx-auto px-4 sm:px-8 py-8 space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Profil</CardTitle>
