@@ -39,7 +39,8 @@ export default function NewMeetingPage() {
     apiFetch("/clients").then((r) => r.json()).then(setClients);
   }, []);
 
-  const canSubmit = titre.trim() && (mode === "visio" || consentAccepted) && !loading;
+  const needsConsent = mode === "dictaphone" && baseLegale === "consentement";
+  const canSubmit = titre.trim() && (!needsConsent || consentAccepted) && !loading;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -52,6 +53,7 @@ export default function NewMeetingPage() {
           titre,
           client_id: clientId || null,
           mode,
+          base_legale: baseLegale,
           langue,
           nombre_locuteurs: nombreLocuteurs > 0 ? nombreLocuteurs : null,
         }),
@@ -213,7 +215,7 @@ export default function NewMeetingPage() {
           </div>
 
           {/* Consent */}
-          {mode === "dictaphone" && <ConsentBanner onAcceptedChange={setConsentAccepted} />}
+          {needsConsent && <ConsentBanner onAcceptedChange={setConsentAccepted} />}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 

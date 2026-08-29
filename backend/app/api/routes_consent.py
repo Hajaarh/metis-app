@@ -29,9 +29,35 @@ async def submit_consent(
     reponse: ReponseConsentement,
     repository: Repository = Depends(get_repository),
 ):
-    reunion_id = repository.submit_participant_consent(jeton, reponse.accepte)
-    if reunion_id is None:
+    result = repository.submit_participant_consent(jeton, reponse.accepte)
+    if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="jeton introuvable")
     choix = "accepte" if reponse.accepte else "refuse"
-    await manager.broadcast(reunion_id, {"type": "consentement", "choix": choix})
-    return {"statut": "enregistre"}
+    counts = repository.get_consent_count(result["reunion_id"])
+    await manager.broadcast(result["reunion_id"], {
+        "type": "consentement",
+        "choix": choix,
+        "signes": counts["signes"],
+        "total": counts["total"],
+        "retractation": False,
+    })
+    return {"statut": "enregistre", "jeton_retractation": result["jeton_retractation"]}
+
+
+@router.delete("/{jeton_retractation}")
+async def retract_consent(
+    jeton_retractation: str,
+    repository: Repository = Depends(get_repository),
+):
+    reunion_id = repository.retract_consent(jeton_retractation)
+    if reunion_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="jeton introuvable")
+    counts = repository.get_consent_count(reunion_id)
+    await manager.broadcast(reunion_id, {
+        "type": "consentement",
+        "choix": "refuse",
+        "signes": counts["signes"],
+        "total": counts["total"],
+        "retractation": True,
+    })
+    return {"statut": "retracte"}
