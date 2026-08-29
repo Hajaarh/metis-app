@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { MonitorSpeaker, Square, CheckCircle, RotateCcw } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 
 interface TabCaptureRecorderProps {
   onBlobReady: (blob: Blob | null) => void;
+  forceStop?: boolean;
 }
 
-export function TabCaptureRecorder({ onBlobReady }: TabCaptureRecorderProps) {
+export function TabCaptureRecorder({ onBlobReady, forceStop }: TabCaptureRecorderProps) {
   const [state, setState] = useState<"idle" | "recording" | "done">("idle");
   const [includeMic, setIncludeMic] = useState(false);
   const [error, setError] = useState("");
@@ -17,6 +18,10 @@ export function TabCaptureRecorder({ onBlobReady }: TabCaptureRecorderProps) {
   const displayStreamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
+
+  useEffect(() => {
+    if (forceStop && state === "recording") stopRecording();
+  }, [forceStop]);
 
   async function startCapture() {
     setError("");
