@@ -148,7 +148,7 @@ export default function MeetingDetailPage({
   async function handleUpload() {
     const audioFile =
       importedFile ??
-      (recordedBlob ? new File([recordedBlob], "enregistrement.webm", { type: recordedBlob.type }) : null);
+      (recordedBlob ? new File([recordedBlob], `enregistrement.${recordedBlob.type.split("/")[1]?.split(";")[0] ?? "webm"}`, { type: recordedBlob.type }) : null);
     if (!audioFile) return;
 
     setUploadError("");
