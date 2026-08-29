@@ -32,6 +32,7 @@ export default function SettingsPage() {
   const [renameDraft, setRenameDraft] = useState("");
 
   const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -98,9 +99,10 @@ export default function SettingsPage() {
 
   async function handleExport() {
     setExporting(true);
+    setExportError(false);
     try {
       const r = await apiFetch("/account/data");
-      if (!r.ok) return;
+      if (!r.ok) { setExportError(true); return; }
       const data = await r.json();
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -109,6 +111,8 @@ export default function SettingsPage() {
       a.download = `metis-export-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
+    } catch {
+      setExportError(true);
     } finally {
       setExporting(false);
     }
@@ -258,7 +262,7 @@ export default function SettingsPage() {
               <CardDescription>Export et suppression de vos données conformément au RGPD</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex flex-col sm:flex-row items-start gap-3">
                 <Button
                   variant="outline"
                   onClick={handleExport}
@@ -268,6 +272,11 @@ export default function SettingsPage() {
                   <Download size={14} />
                   {exporting ? "Export en cours…" : "Exporter mes données"}
                 </Button>
+                {exportError && (
+                  <p className="text-[12px] text-destructive self-center">
+                    L&apos;export a échoué. Réessayez.
+                  </p>
+                )}
               </div>
               <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 space-y-3">
                 <div>
