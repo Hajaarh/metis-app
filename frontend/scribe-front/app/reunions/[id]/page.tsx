@@ -231,7 +231,7 @@ export default function MeetingDetailPage({
   return (
     <AppSidebar>
       {/* Header */}
-      <div className="px-8 pt-6 pb-4 shrink-0 border-b border-border">
+      <div className="px-4 sm:px-8 pt-6 pb-4 shrink-0 border-b border-border">
         <div className="flex items-center gap-3 mb-3">
           <Link
             href="/"
@@ -289,7 +289,7 @@ export default function MeetingDetailPage({
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto scrollbar-hide">
-        <div className="max-w-[680px] mx-auto px-8 py-8 space-y-8">
+        <div className="max-w-[680px] mx-auto px-4 sm:px-8 py-8 space-y-8">
 
           {/* Consent link + audio upload — visible only when en_attente */}
           {isEnAttente && (

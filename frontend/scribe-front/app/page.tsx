@@ -114,7 +114,7 @@ export default function DashboardPage() {
   return (
     <AppSidebar>
       {/* Header */}
-      <div className="flex items-center justify-between px-8 pt-6 pb-4 shrink-0 border-b border-border">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 sm:px-8 pt-6 pb-4 shrink-0 border-b border-border gap-3 sm:gap-0">
         <div>
           <h1 className="text-xl font-medium text-foreground">Réunions</h1>
           {!loading && (
@@ -154,7 +154,7 @@ export default function DashboardPage() {
       </div>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto px-8 py-6 scrollbar-hide">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 scrollbar-hide">
         {loading && (
           <p className="text-sm text-muted-foreground text-center py-12">Chargement…</p>
         )}
