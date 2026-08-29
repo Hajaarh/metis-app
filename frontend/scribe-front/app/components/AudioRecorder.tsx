@@ -6,9 +6,10 @@ import { Button } from "@/app/components/ui/button";
 
 interface AudioRecorderProps {
   onBlobReady: (blob: Blob | null) => void;
+  forceStop?: boolean;
 }
 
-export function AudioRecorder({ onBlobReady }: AudioRecorderProps) {
+export function AudioRecorder({ onBlobReady, forceStop }: AudioRecorderProps) {
   const [state, setState] = useState<"idle" | "recording" | "paused" | "done">("idle");
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState("");
@@ -22,6 +23,10 @@ export function AudioRecorder({ onBlobReady }: AudioRecorderProps) {
     const interval = setInterval(() => setElapsed((e) => e + 1), 1000);
     return () => clearInterval(interval);
   }, [state]);
+
+  useEffect(() => {
+    if (forceStop && (state === "recording" || state === "paused")) stopRecording();
+  }, [forceStop]);
 
   const minutes = Math.floor(elapsed / 60);
   const seconds = elapsed % 60;

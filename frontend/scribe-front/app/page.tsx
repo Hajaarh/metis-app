@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Trash2, Pencil } from "lucide-react";
 import { AppSidebar } from "@/app/components/AppSidebar";
 import { StatusDot, type BackendStatus } from "@/app/components/StatusDot";
 import { Button } from "@/app/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/app/components/ui/dropdown-menu";
 import { apiFetch } from "@/app/lib/api";
 
 interface Reunion {
@@ -13,6 +14,7 @@ interface Reunion {
   titre: string;
   statut_traitement: BackendStatus;
   date_debut: string;
+  type_reunion: string | null;
 }
 
 function formatTime(dateStr: string): string {
@@ -48,28 +50,71 @@ export default function DashboardPage() {
   const [reunions, setReunions] = useState<Reunion[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [sortBy, setSortBy] = useState<"date" | "type">("date");
 
   useEffect(() => {
     apiFetch("/meetings")
-      .then((r) => r.json())
+      .then((r) => r.ok ? r.json() : [])
       .then(setReunions)
       .finally(() => setLoading(false));
   }, []);
+
+  function startRename(reunion: Reunion) {
+    setRenamingId(reunion.id);
+    setRenameDraft(reunion.titre);
+  }
+
+  async function saveRename(id: string) {
+    if (!renameDraft.trim()) { setRenamingId(null); return; }
+    const original = reunions.find((r) => r.id === id)?.titre;
+    if (renameDraft.trim() === original) { setRenamingId(null); return; }
+    const r = await apiFetch(`/meetings/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ titre: renameDraft.trim() }),
+    });
+    if (r.ok) {
+      setReunions((prev) => prev.map((re) => re.id === id ? { ...re, titre: renameDraft.trim() } : re));
+    }
+    setRenamingId(null);
+  }
+
+  async function handleDelete(id: string) {
+    setDeleting(id);
+    const r = await apiFetch(`/meetings/${id}`, { method: "DELETE" });
+    if (r.ok || r.status === 204) {
+      setReunions((prev) => prev.filter((re) => re.id !== id));
+    }
+    setDeleting(null);
+  }
 
   const filtered = reunions.filter((r) =>
     r.titre.toLowerCase().includes(search.toLowerCase())
   );
 
-  const groups = (["today", "yesterday", "week", "older"] as const).map((key) => ({
-    key,
-    label: GROUP_LABELS[key],
-    items: filtered.filter((r) => getGroup(r.date_debut) === key),
-  })).filter((g) => g.items.length > 0);
+  const groups = sortBy === "date"
+    ? (["today", "yesterday", "week", "older"] as const)
+        .map((key) => ({ key, label: GROUP_LABELS[key], items: filtered.filter((r) => getGroup(r.date_debut) === key) }))
+        .filter((g) => g.items.length > 0)
+    : [...new Set(filtered.map((r) => r.type_reunion ?? "__none__"))]
+        .sort((a, b) => {
+          if (a === "__none__") return 1;
+          if (b === "__none__") return -1;
+          return a.localeCompare(b, "fr");
+        })
+        .map((type) => ({
+          key: type,
+          label: type === "__none__" ? "Sans type" : type,
+          items: filtered.filter((r) => (r.type_reunion ?? "__none__") === type),
+        }))
+        .filter((g) => g.items.length > 0);
 
   return (
     <AppSidebar>
       {/* Header */}
-      <div className="flex items-center justify-between px-8 pt-6 pb-4 shrink-0 border-b border-border">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 sm:px-8 pt-6 pb-4 shrink-0 border-b border-border gap-3 sm:gap-0">
         <div>
           <h1 className="text-xl font-medium text-foreground">Réunions</h1>
           {!loading && (
@@ -77,6 +122,19 @@ export default function DashboardPage() {
           )}
         </div>
         <div className="flex items-center gap-3">
+          <div className="flex items-center rounded-[10px] p-[3px] gap-0.5 bg-muted">
+            {(["date", "type"] as const).map((value) => (
+              <button
+                key={value}
+                onClick={() => setSortBy(value)}
+                className={`px-3 py-1 rounded-[8px] text-[12px] font-medium transition-all ${
+                  sortBy === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+                }`}
+              >
+                {value === "date" ? "Par date" : "Par type"}
+              </button>
+            ))}
+          </div>
           <div className="flex items-center gap-2 h-8 rounded-xl px-3 bg-secondary">
             <Search size={12} strokeWidth={2} className="text-muted-foreground" />
             <input
@@ -96,7 +154,7 @@ export default function DashboardPage() {
       </div>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto px-8 py-6 scrollbar-hide">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 scrollbar-hide">
         {loading && (
           <p className="text-sm text-muted-foreground text-center py-12">Chargement…</p>
         )}
@@ -112,23 +170,61 @@ export default function DashboardPage() {
             </p>
             <div className="space-y-1">
               {items.map((reunion) => (
-                <Link
+                <div
                   key={reunion.id}
-                  href={`/reunions/${reunion.id}`}
-                  className="flex items-center gap-4 px-4 py-3 rounded-xl transition-colors hover:bg-muted/50"
+                  className="group flex items-center gap-2 px-4 py-3 rounded-xl transition-colors hover:bg-muted/50"
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-[13.5px] font-medium text-foreground truncate">
-                        {reunion.titre}
+                  {renamingId === reunion.id ? (
+                    <input
+                      autoFocus
+                      value={renameDraft}
+                      onChange={(e) => setRenameDraft(e.target.value)}
+                      onBlur={() => saveRename(reunion.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveRename(reunion.id);
+                        if (e.key === "Escape") setRenamingId(null);
+                      }}
+                      className="flex-1 text-[13.5px] font-medium text-foreground bg-transparent border-b border-primary outline-none"
+                    />
+                  ) : (
+                    <Link href={`/reunions/${reunion.id}`} className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-[13.5px] font-medium text-foreground truncate">
+                          {reunion.titre}
+                        </span>
+                        <StatusDot status={reunion.statut_traitement} />
+                      </div>
+                      <span className="text-[12px] text-muted-foreground">
+                        {formatTime(reunion.date_debut)}
                       </span>
-                      <StatusDot status={reunion.statut_traitement} />
-                    </div>
-                    <span className="text-[12px] text-muted-foreground">
-                      {formatTime(reunion.date_debut)}
-                    </span>
-                  </div>
-                </Link>
+                    </Link>
+                  )}
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground">
+                        <MoreHorizontal size={15} strokeWidth={2} />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        className="gap-2"
+                        onSelect={() => startRename(reunion)}
+                      >
+                        <Pencil size={13} />
+                        Renommer
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive gap-2"
+                        disabled={deleting === reunion.id}
+                        onSelect={() => handleDelete(reunion.id)}
+                      >
+                        <Trash2 size={13} />
+                        {deleting === reunion.id ? "Suppression…" : "Supprimer"}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               ))}
             </div>
           </div>

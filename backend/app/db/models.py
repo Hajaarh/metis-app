@@ -14,6 +14,7 @@ TABLE_REUNION_THEME = "reunion_theme"
 
 MODE_DICTAPHONE = "dictaphone"
 BASE_LEGALE_CONSENTEMENT = "consentement"
+BASE_LEGALE_INTERET_LEGITIME = "interet_legitime"
 VERSION_ATTESTATION = "v1"
 
 STATUT_EN_ATTENTE = "en_attente"
