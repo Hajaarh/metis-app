@@ -27,7 +27,7 @@ export function AudioRecorder({ onBlobReady, forceStop }: AudioRecorderProps) {
 
   useEffect(() => {
     if (forceStop && (state === "recording" || state === "paused")) stopRecording();
-  }, [forceStop]);
+  }, [forceStop, state]);
 
   const minutes = Math.floor(elapsed / 60);
   const seconds = elapsed % 60;

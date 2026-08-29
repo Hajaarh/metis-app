@@ -78,14 +78,14 @@ export default function ClientDetailPage({
       const [clientData, meetingsData, actionsData, statsData] = await Promise.all([
         clientRes.json(),
         meetingsRes.json(),
-        actionsRes.json(),
-        statsRes.json(),
+        actionsRes.ok ? actionsRes.json() : Promise.resolve([]),
+        statsRes.ok ? statsRes.json() : Promise.resolve({ temps_parole: {} }),
       ]);
       setClient(clientData);
       setReunions(meetingsData);
       setActions(actionsData);
       setTempsParole(statsData.temps_parole ?? {});
-    }).finally(() => setLoading(false));
+    }).catch(() => setNotFound(true)).finally(() => setLoading(false));
   }, [id]);
 
   if (loading) {
