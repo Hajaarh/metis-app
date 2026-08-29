@@ -600,3 +600,52 @@ class Repository:
             self.client.table(models.TABLE_ACTION).select("id").in_("compte_rendu_id", compte_rendu_ids).execute()
         )
         return len(actions.data)
+
+    def client_actions(self, client_id: str, user_id: str) -> list:
+        reunions = (
+            self.client.table(models.TABLE_REUNION)
+            .select("id, titre")
+            .eq("client_id", client_id)
+            .eq("utilisateur_id", user_id)
+            .execute()
+        )
+        if not reunions.data:
+            return []
+        reunion_map = {r["id"]: r for r in reunions.data}
+        comptes = (
+            self.client.table(models.TABLE_COMPTE_RENDU)
+            .select("id, reunion_id")
+            .in_("reunion_id", list(reunion_map.keys()))
+            .execute()
+        )
+        if not comptes.data:
+            return []
+        compte_map = {c["id"]: c["reunion_id"] for c in comptes.data}
+        actions = (
+            self.client.table(models.TABLE_ACTION)
+            .select("id, intitule, responsable, echeance, compte_rendu_id")
+            .in_("compte_rendu_id", list(compte_map.keys()))
+            .order("echeance")
+            .execute()
+        )
+        result = []
+        for action in actions.data:
+            reunion_id = compte_map.get(action["compte_rendu_id"])
+            reunion = reunion_map.get(reunion_id, {})
+            result.append({
+                **action,
+                "reunion_id": reunion_id,
+                "reunion_titre": reunion.get("titre", ""),
+            })
+        return result
+
+    def client_stats(self, client_id: str, user_id: str) -> dict:
+        reunions = (
+            self.client.table(models.TABLE_REUNION)
+            .select("id")
+            .eq("client_id", client_id)
+            .eq("utilisateur_id", user_id)
+            .execute()
+        )
+        reunion_ids = [r["id"] for r in reunions.data]
+        return {"temps_parole": self.repartition_temps_parole(reunion_ids)}
