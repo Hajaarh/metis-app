@@ -23,6 +23,8 @@ interface TranscriptViewProps {
   meetingId: string;
   segments: Segment[];
   locuteurs: Locuteur[];
+  highlightedSegmentId?: string | null;
+  onSegmentHighlighted?: () => void;
 }
 
 function escapeRegex(s: string): string {
@@ -56,7 +58,7 @@ function formatTimestamp(seconds: number): string {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
-export function TranscriptView({ meetingId, segments, locuteurs }: TranscriptViewProps) {
+export function TranscriptView({ meetingId, segments, locuteurs, highlightedSegmentId, onSegmentHighlighted }: TranscriptViewProps) {
   const [editingSegmentId, setEditingSegmentId] = useState<string | null>(null);
   const [locuteurNames, setLocuteurNames] = useState<Record<string, string>>(
     Object.fromEntries(locuteurs.map((l) => [l.id, l.label]))
@@ -64,6 +66,14 @@ export function TranscriptView({ meetingId, segments, locuteurs }: TranscriptVie
   const [renameError, setRenameError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [currentMatchIdx, setCurrentMatchIdx] = useState(0);
+
+  useEffect(() => {
+    if (!highlightedSegmentId) return;
+    const el = document.querySelector(`[data-segment-id="${highlightedSegmentId}"]`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const timer = setTimeout(() => onSegmentHighlighted?.(), 3000);
+    return () => clearTimeout(timer);
+  }, [highlightedSegmentId]);
 
   // Compute cumulative match offsets per segment
   const matchOffsets: number[] = [];
@@ -144,8 +154,13 @@ export function TranscriptView({ meetingId, segments, locuteurs }: TranscriptVie
 
       {segments.map((segment, segIdx) => {
         const name = getLocuteurName(segment.locuteur_id);
+        const isHighlighted = highlightedSegmentId === segment.id;
         return (
-          <div key={segment.id} className="flex gap-3">
+          <div
+            key={segment.id}
+            data-segment-id={segment.id}
+            className={`flex gap-3 rounded-xl px-2 py-1 -mx-2 transition-colors duration-500 ${isHighlighted ? "bg-primary/8 ring-1 ring-primary/20" : ""}`}
+          >
             <MeetingAvatar name={name} size={28} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
