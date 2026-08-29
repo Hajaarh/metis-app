@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Calendar, Copy, Check, Loader2 } from "lucide-react";
+import { ArrowLeft, Calendar, Copy, Check, Loader2, AlertCircle } from "lucide-react";
 import { AppSidebar } from "@/app/components/AppSidebar";
 import { StatusDot, type BackendStatus } from "@/app/components/StatusDot";
 import { TranscriptView, type Segment, type Locuteur } from "@/app/components/TranscriptView";
@@ -22,6 +22,7 @@ interface Reunion {
   date_debut: string;
   duree_secondes: number | null;
   mode: string;
+  message_erreur: string | null;
 }
 
 interface MeetingDetail {
@@ -279,6 +280,17 @@ export default function MeetingDetailPage({
                 >
                   {uploading ? "Envoi en cours…" : "Lancer la transcription"}
                 </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Error message */}
+          {reunion.statut_traitement === "erreur" && reunion.message_erreur && (
+            <div className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+              <AlertCircle size={16} className="text-destructive shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-destructive mb-1">Erreur de traitement</p>
+                <p className="text-[12.5px] text-muted-foreground font-mono break-all">{reunion.message_erreur}</p>
               </div>
             </div>
           )}
