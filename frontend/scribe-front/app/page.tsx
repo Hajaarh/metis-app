@@ -14,6 +14,7 @@ interface Reunion {
   titre: string;
   statut_traitement: BackendStatus;
   date_debut: string;
+  type_reunion: string | null;
 }
 
 function formatTime(dateStr: string): string {
@@ -52,6 +53,7 @@ export default function DashboardPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
+  const [sortBy, setSortBy] = useState<"date" | "type">("date");
 
   useEffect(() => {
     apiFetch("/meetings")
@@ -92,11 +94,22 @@ export default function DashboardPage() {
     r.titre.toLowerCase().includes(search.toLowerCase())
   );
 
-  const groups = (["today", "yesterday", "week", "older"] as const).map((key) => ({
-    key,
-    label: GROUP_LABELS[key],
-    items: filtered.filter((r) => getGroup(r.date_debut) === key),
-  })).filter((g) => g.items.length > 0);
+  const groups = sortBy === "date"
+    ? (["today", "yesterday", "week", "older"] as const)
+        .map((key) => ({ key, label: GROUP_LABELS[key], items: filtered.filter((r) => getGroup(r.date_debut) === key) }))
+        .filter((g) => g.items.length > 0)
+    : [...new Set(filtered.map((r) => r.type_reunion ?? "__none__"))]
+        .sort((a, b) => {
+          if (a === "__none__") return 1;
+          if (b === "__none__") return -1;
+          return a.localeCompare(b, "fr");
+        })
+        .map((type) => ({
+          key: type,
+          label: type === "__none__" ? "Sans type" : type,
+          items: filtered.filter((r) => (r.type_reunion ?? "__none__") === type),
+        }))
+        .filter((g) => g.items.length > 0);
 
   return (
     <AppSidebar>
@@ -109,6 +122,19 @@ export default function DashboardPage() {
           )}
         </div>
         <div className="flex items-center gap-3">
+          <div className="flex items-center rounded-[10px] p-[3px] gap-0.5 bg-muted">
+            {(["date", "type"] as const).map((value) => (
+              <button
+                key={value}
+                onClick={() => setSortBy(value)}
+                className={`px-3 py-1 rounded-[8px] text-[12px] font-medium transition-all ${
+                  sortBy === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+                }`}
+              >
+                {value === "date" ? "Par date" : "Par type"}
+              </button>
+            ))}
+          </div>
           <div className="flex items-center gap-2 h-8 rounded-xl px-3 bg-secondary">
             <Search size={12} strokeWidth={2} className="text-muted-foreground" />
             <input
