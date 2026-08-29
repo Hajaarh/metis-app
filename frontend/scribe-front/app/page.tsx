@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Search, MoreHorizontal, Trash2 } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Trash2, Pencil } from "lucide-react";
 import { AppSidebar } from "@/app/components/AppSidebar";
 import { StatusDot, type BackendStatus } from "@/app/components/StatusDot";
 import { Button } from "@/app/components/ui/button";
@@ -50,6 +50,8 @@ export default function DashboardPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
 
   useEffect(() => {
     apiFetch("/meetings")
@@ -57,6 +59,25 @@ export default function DashboardPage() {
       .then(setReunions)
       .finally(() => setLoading(false));
   }, []);
+
+  function startRename(reunion: Reunion) {
+    setRenamingId(reunion.id);
+    setRenameDraft(reunion.titre);
+  }
+
+  async function saveRename(id: string) {
+    if (!renameDraft.trim()) { setRenamingId(null); return; }
+    const original = reunions.find((r) => r.id === id)?.titre;
+    if (renameDraft.trim() === original) { setRenamingId(null); return; }
+    const r = await apiFetch(`/meetings/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ titre: renameDraft.trim() }),
+    });
+    if (r.ok) {
+      setReunions((prev) => prev.map((re) => re.id === id ? { ...re, titre: renameDraft.trim() } : re));
+    }
+    setRenamingId(null);
+  }
 
   async function handleDelete(id: string) {
     setDeleting(id);
@@ -127,17 +148,31 @@ export default function DashboardPage() {
                   key={reunion.id}
                   className="group flex items-center gap-2 px-4 py-3 rounded-xl transition-colors hover:bg-muted/50"
                 >
-                  <Link href={`/reunions/${reunion.id}`} className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-[13.5px] font-medium text-foreground truncate">
-                        {reunion.titre}
+                  {renamingId === reunion.id ? (
+                    <input
+                      autoFocus
+                      value={renameDraft}
+                      onChange={(e) => setRenameDraft(e.target.value)}
+                      onBlur={() => saveRename(reunion.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveRename(reunion.id);
+                        if (e.key === "Escape") setRenamingId(null);
+                      }}
+                      className="flex-1 text-[13.5px] font-medium text-foreground bg-transparent border-b border-primary outline-none"
+                    />
+                  ) : (
+                    <Link href={`/reunions/${reunion.id}`} className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-[13.5px] font-medium text-foreground truncate">
+                          {reunion.titre}
+                        </span>
+                        <StatusDot status={reunion.statut_traitement} />
+                      </div>
+                      <span className="text-[12px] text-muted-foreground">
+                        {formatTime(reunion.date_debut)}
                       </span>
-                      <StatusDot status={reunion.statut_traitement} />
-                    </div>
-                    <span className="text-[12px] text-muted-foreground">
-                      {formatTime(reunion.date_debut)}
-                    </span>
-                  </Link>
+                    </Link>
+                  )}
 
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -146,6 +181,13 @@ export default function DashboardPage() {
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        className="gap-2"
+                        onSelect={() => startRename(reunion)}
+                      >
+                        <Pencil size={13} />
+                        Renommer
+                      </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive gap-2"
                         disabled={deleting === reunion.id}

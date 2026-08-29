@@ -1,8 +1,8 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Calendar, Copy, Check, Loader2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Calendar, Copy, Check, Loader2, AlertCircle, Pencil } from "lucide-react";
 import { AppSidebar } from "@/app/components/AppSidebar";
 import { StatusDot, type BackendStatus } from "@/app/components/StatusDot";
 import { TranscriptView, type Segment, type Locuteur } from "@/app/components/TranscriptView";
@@ -63,6 +63,10 @@ export default function MeetingDetailPage({
   const [detail, setDetail] = useState<MeetingDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   const [audioSource, setAudioSource] = useState<"record" | "import">("record");
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
@@ -134,6 +138,29 @@ export default function MeetingDetailPage({
     setUploading(false);
   }
 
+  function startEditingTitle() {
+    if (!detail) return;
+    setTitleDraft(detail.reunion.titre);
+    setEditingTitle(true);
+    setTimeout(() => titleInputRef.current?.select(), 0);
+  }
+
+  async function saveTitle() {
+    if (!detail || !titleDraft.trim()) { setEditingTitle(false); return; }
+    if (titleDraft.trim() === detail.reunion.titre) { setEditingTitle(false); return; }
+    await apiFetch(`/meetings/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ titre: titleDraft.trim() }),
+    });
+    setDetail((prev) => prev ? { ...prev, reunion: { ...prev.reunion, titre: titleDraft.trim() } } : prev);
+    setEditingTitle(false);
+  }
+
+  function handleTitleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") saveTitle();
+    if (e.key === "Escape") setEditingTitle(false);
+  }
+
   function copyConsentLink(jeton: string) {
     const url = `${window.location.origin}/consent/${jeton}`;
     navigator.clipboard.writeText(url);
@@ -178,8 +205,27 @@ export default function MeetingDetailPage({
             <ArrowLeft size={16} />
           </Link>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-medium text-foreground">{reunion.titre}</h1>
+            {editingTitle ? (
+              <input
+                ref={titleInputRef}
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onBlur={saveTitle}
+                onKeyDown={handleTitleKeyDown}
+                className="text-xl font-medium text-foreground bg-transparent border-b border-primary outline-none"
+              />
+            ) : (
+              <h1 className="text-xl font-medium text-foreground">{reunion.titre}</h1>
+            )}
             <StatusDot status={reunion.statut_traitement} />
+            {!editingTitle && (
+              <button
+                onClick={startEditingTitle}
+                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <Pencil size={13} strokeWidth={2} />
+              </button>
+            )}
           </div>
         </div>
 
