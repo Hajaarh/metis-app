@@ -13,6 +13,7 @@ export function AudioRecorder({ onBlobReady, forceStop }: AudioRecorderProps) {
   const [state, setState] = useState<"idle" | "recording" | "paused" | "done">("idle");
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState("");
+  const [canPause, setCanPause] = useState(true);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -26,7 +27,7 @@ export function AudioRecorder({ onBlobReady, forceStop }: AudioRecorderProps) {
 
   useEffect(() => {
     if (forceStop && (state === "recording" || state === "paused")) stopRecording();
-  }, [forceStop]);
+  }, [forceStop, state]);
 
   const minutes = Math.floor(elapsed / 60);
   const seconds = elapsed % 60;
@@ -76,11 +77,19 @@ export function AudioRecorder({ onBlobReady, forceStop }: AudioRecorderProps) {
 
   function togglePause() {
     if (state === "recording") {
-      mediaRecorderRef.current?.pause();
-      setState("paused");
+      try {
+        mediaRecorderRef.current?.pause();
+        setState("paused");
+      } catch {
+        setCanPause(false);
+      }
     } else {
-      mediaRecorderRef.current?.resume();
-      setState("recording");
+      try {
+        mediaRecorderRef.current?.resume();
+        setState("recording");
+      } catch {
+        setCanPause(false);
+      }
     }
   }
 
@@ -125,14 +134,16 @@ export function AudioRecorder({ onBlobReady, forceStop }: AudioRecorderProps) {
 
         {(state === "recording" || state === "paused") && (
           <>
-            <Button
-              variant="outline"
-              size="icon"
-              className="rounded-full h-10 w-10"
-              onClick={togglePause}
-            >
-              {state === "recording" ? <Pause size={16} /> : <Play size={16} />}
-            </Button>
+            {canPause && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-full h-10 w-10"
+                onClick={togglePause}
+              >
+                {state === "recording" ? <Pause size={16} /> : <Play size={16} />}
+              </Button>
+            )}
             <Button
               variant="destructive"
               size="icon"
