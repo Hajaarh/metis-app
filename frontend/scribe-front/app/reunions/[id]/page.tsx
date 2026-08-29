@@ -23,6 +23,12 @@ interface Reunion {
   duree_secondes: number | null;
   mode: string;
   message_erreur: string | null;
+  client_id: string | null;
+}
+
+interface Client {
+  id: string;
+  nom: string;
 }
 
 interface MeetingDetail {
@@ -64,6 +70,8 @@ export default function MeetingDetailPage({
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
+  const [clients, setClients] = useState<Client[]>([]);
+
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -75,6 +83,10 @@ export default function MeetingDetailPage({
   const [uploadError, setUploadError] = useState("");
   const [copied, setCopied] = useState(false);
   const [pollingActive, setPollingActive] = useState(false);
+
+  useEffect(() => {
+    apiFetch("/clients").then((r) => r.json()).then(setClients).catch(() => {});
+  }, []);
 
   // Chargement initial — une seule requête, sans intervalle
   useEffect(() => {
@@ -161,6 +173,17 @@ export default function MeetingDetailPage({
     if (e.key === "Escape") setEditingTitle(false);
   }
 
+  async function handleClientChange(clientId: string) {
+    const newClientId = clientId === "__none__" ? null : clientId;
+    await apiFetch(`/meetings/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ client_id: newClientId }),
+    });
+    setDetail((prev) =>
+      prev ? { ...prev, reunion: { ...prev.reunion, client_id: newClientId } } : prev
+    );
+  }
+
   function copyConsentLink(jeton: string) {
     const url = `${window.location.origin}/consent/${jeton}`;
     navigator.clipboard.writeText(url);
@@ -229,7 +252,7 @@ export default function MeetingDetailPage({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 ml-10">
+        <div className="flex items-center gap-4 ml-10">
           <div className="flex items-center gap-1.5">
             <Calendar size={12} strokeWidth={2} className="text-muted-foreground" />
             <span className="text-[12.5px] text-muted-foreground">
@@ -237,6 +260,18 @@ export default function MeetingDetailPage({
               {reunion.duree_secondes && ` · ${formatDuration(reunion.duree_secondes)}`}
             </span>
           </div>
+          {clients.length > 0 && (
+            <select
+              value={reunion.client_id ?? "__none__"}
+              onChange={(e) => handleClientChange(e.target.value)}
+              className="text-[12.5px] text-muted-foreground bg-transparent border-none outline-none cursor-pointer hover:text-foreground transition-colors"
+            >
+              <option value="__none__">Aucun client</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>{c.nom}</option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
