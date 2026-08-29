@@ -1,3 +1,4 @@
+from app.api.ws_manager import manager
 from app.contracts.meeting_intelligence import MeetingIntelligence
 from app.contracts.transcript import Transcript
 from app.db import models
@@ -45,6 +46,8 @@ class MeetingPipeline:
             raise ConsentementRefuseError(reunion_id)
         try:
             self.repository.set_meeting_status(reunion_id, models.STATUT_TRANSCRIPTION)
+            await manager.broadcast(reunion_id, {"type": "reunion", "statut_traitement": models.STATUT_TRANSCRIPTION, "message_erreur": None})
+
             transcript = await self.transcription_provider.transcribe(
                 reunion_id, audio_file, file_name, langue, nombre_locuteurs
             )
@@ -54,12 +57,16 @@ class MeetingPipeline:
                 self.repository.set_meeting_duration(reunion_id, duree)
 
             self.repository.set_meeting_status(reunion_id, models.STATUT_ANALYSE)
+            await manager.broadcast(reunion_id, {"type": "reunion", "statut_traitement": models.STATUT_ANALYSE, "message_erreur": None})
+
             intelligence = await self.llm_provider.generate_intelligence(transcript)
             self.repository.save_intelligence(reunion_id, intelligence, self.modele_llm, segment_ids)
 
             self.repository.log_audio_purge(reunion_id)
             self.repository.set_meeting_status(reunion_id, models.STATUT_TERMINE)
+            await manager.broadcast(reunion_id, {"type": "reunion", "statut_traitement": models.STATUT_TERMINE, "message_erreur": None})
             return intelligence
         except Exception as exception:
             self.repository.set_meeting_error(reunion_id, str(exception))
+            await manager.broadcast(reunion_id, {"type": "reunion", "statut_traitement": models.STATUT_ERREUR, "message_erreur": str(exception)})
             raise

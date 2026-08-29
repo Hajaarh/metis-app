@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import routes_account, routes_auth, routes_clients, routes_consent, routes_dashboard, routes_meetings
+from app.api import routes_account, routes_auth, routes_clients, routes_consent, routes_dashboard, routes_meetings, routes_ws_meetings
 
 app = FastAPI(title="Scribe API", version="0.1.0")
 
@@ -19,6 +19,7 @@ app.include_router(routes_clients.router)
 app.include_router(routes_consent.router)
 app.include_router(routes_dashboard.router)
 app.include_router(routes_account.router)
+app.include_router(routes_ws_meetings.router)
 
 
 @app.get("/health")

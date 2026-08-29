@@ -82,13 +82,12 @@ export default function MeetingDetailPage({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [copied, setCopied] = useState(false);
-  const [pollingActive, setPollingActive] = useState(false);
 
   useEffect(() => {
     apiFetch("/clients").then((r) => r.json()).then(setClients).catch(() => {});
   }, []);
 
-  // Chargement initial — une seule requête, sans intervalle
+  // Chargement initial
   useEffect(() => {
     async function fetchOnce() {
       const r = await apiFetch(`/meetings/${id}`);
@@ -96,32 +95,36 @@ export default function MeetingDetailPage({
       const data: MeetingDetail = await r.json();
       setDetail(data);
       setLoading(false);
-      // Si le traitement est déjà en cours (ex : rechargement de page), activer le polling
-      const s = data.reunion.statut_traitement;
-      if (s !== "en_attente" && !TERMINAL_STATUSES.includes(s)) {
-        setPollingActive(true);
-      }
     }
     fetchOnce();
   }, [id]);
 
-  // Polling — uniquement après upload ou si déjà en traitement
+  // WebSocket — reçoit les mises à jour de statut en temps réel
   useEffect(() => {
-    if (!pollingActive) return;
+    const token = getToken();
+    if (!token) return;
 
-    async function poll() {
-      const r = await apiFetch(`/meetings/${id}`);
-      if (r.status === 404) { setPollingActive(false); return; }
-      const data: MeetingDetail = await r.json();
-      setDetail(data);
-      if (TERMINAL_STATUSES.includes(data.reunion.statut_traitement)) {
-        setPollingActive(false);
+    const wsUrl = API_URL.replace(/^http/, "ws");
+    const ws = new WebSocket(`${wsUrl}/ws/meetings/${id}?token=${encodeURIComponent(token)}`);
+
+    ws.onmessage = async (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type === "reunion") {
+        setDetail((prev) =>
+          prev
+            ? { ...prev, reunion: { ...prev.reunion, statut_traitement: msg.statut_traitement, message_erreur: msg.message_erreur } }
+            : prev
+        );
+        if (TERMINAL_STATUSES.includes(msg.statut_traitement)) {
+          ws.close();
+          const r = await apiFetch(`/meetings/${id}`);
+          if (r.ok) setDetail(await r.json());
+        }
       }
-    }
+    };
 
-    const intervalId = setInterval(poll, 5000);
-    return () => clearInterval(intervalId);
-  }, [pollingActive, id]);
+    return () => ws.close();
+  }, [id]);
 
   async function handleUpload() {
     const audioFile =
@@ -144,8 +147,6 @@ export default function MeetingDetailPage({
 
     if (!r.ok) {
       setUploadError("L'upload a échoué. Réessayez.");
-    } else {
-      setPollingActive(true);
     }
     setUploading(false);
   }
