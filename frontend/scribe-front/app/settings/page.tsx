@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Trash2, Download } from "lucide-react";
 import { AppSidebar } from "@/app/components/AppSidebar";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { apiFetch } from "@/app/lib/api";
+import { clearToken } from "@/app/lib/auth";
 
 interface Client {
   id: string;
@@ -16,6 +18,7 @@ interface Client {
 }
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [retention, setRetention] = useState("30");
   const [loading, setLoading] = useState(true);
@@ -25,6 +28,10 @@ export default function SettingsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [newClientNom, setNewClientNom] = useState("");
   const [addingClient, setAddingClient] = useState(false);
+
+  const [exporting, setExporting] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -69,15 +76,45 @@ export default function SettingsPage() {
     setClients((prev) => prev.filter((c) => c.id !== id));
   }
 
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const r = await apiFetch("/account/data");
+      if (!r.ok) return;
+      const data = await r.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `metis-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    setDeleting(true);
+    const r = await apiFetch("/account", { method: "DELETE" });
+    if (r.ok || r.status === 204) {
+      clearToken();
+      router.push("/login");
+    } else {
+      setDeleting(false);
+      setDeleteConfirm(false);
+    }
+  }
+
   return (
     <AppSidebar>
-      <div className="px-8 pt-6 pb-4 shrink-0 border-b border-border">
+      <div className="px-4 sm:px-8 pt-6 pb-4 shrink-0 border-b border-border">
         <h1 className="text-xl font-medium text-foreground">Paramètres</h1>
         <p className="text-sm text-muted-foreground">Gérez votre profil, vos clients et vos préférences</p>
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-hide">
-        <div className="max-w-[600px] mx-auto px-8 py-8 space-y-6">
+        <div className="max-w-[600px] mx-auto px-4 sm:px-8 py-8 space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Profil</CardTitle>
@@ -171,6 +208,60 @@ export default function SettingsPage() {
             </Button>
             {saved && <span className="text-sm text-[#5E9E72]">Modifications enregistrées</span>}
           </div>
+
+          <Card className="border-destructive/30">
+            <CardHeader>
+              <CardTitle className="text-destructive">Données personnelles</CardTitle>
+              <CardDescription>Export et suppression de vos données conformément au RGPD</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                  variant="outline"
+                  onClick={handleExport}
+                  disabled={loading || exporting}
+                  className="gap-2"
+                >
+                  <Download size={14} />
+                  {exporting ? "Export en cours…" : "Exporter mes données"}
+                </Button>
+              </div>
+              <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Supprimer mon compte</p>
+                  <p className="text-[12px] text-muted-foreground mt-0.5">
+                    Supprime définitivement votre compte et toutes vos données (réunions, transcriptions, comptes rendus). Cette action est irréversible.
+                  </p>
+                </div>
+                {!deleteConfirm ? (
+                  <Button
+                    variant="outline"
+                    className="border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground gap-2"
+                    onClick={() => setDeleteConfirm(true)}
+                  >
+                    <Trash2 size={14} />
+                    Supprimer mon compte
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <Button
+                      variant="destructive"
+                      onClick={handleDeleteAccount}
+                      disabled={deleting}
+                    >
+                      {deleting ? "Suppression…" : "Confirmer la suppression"}
+                    </Button>
+                    <button
+                      onClick={() => setDeleteConfirm(false)}
+                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </AppSidebar>
