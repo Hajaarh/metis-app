@@ -8,15 +8,46 @@ import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/app/components/ui/card";
+import { setToken } from "@/app/lib/auth";
+import { API_URL } from "@/app/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    router.push("/");
+    setError("");
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (res.status === 401) {
+        setError("Identifiants invalides.");
+        return;
+      }
+
+      if (!res.ok) {
+        setError("Une erreur est survenue. Réessayez.");
+        return;
+      }
+
+      const data = await res.json();
+      setToken(data.access_token);
+      router.push("/");
+    } catch {
+      setError("Impossible de joindre le serveur.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -28,7 +59,7 @@ export default function LoginPage() {
               <Mic size={20} color="white" strokeWidth={2} />
             </div>
           </div>
-          <CardTitle className="text-xl">Se connecter à Scribe</CardTitle>
+          <CardTitle className="text-xl">Se connecter à Metis</CardTitle>
           <CardDescription>
             Entrez vos identifiants pour accéder à votre espace
           </CardDescription>
@@ -57,8 +88,11 @@ export default function LoginPage() {
                 required
               />
             </div>
-            <Button type="submit" className="w-full">
-              Se connecter
+            {error && (
+              <p className="text-sm text-destructive">{error}</p>
+            )}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Connexion…" : "Se connecter"}
             </Button>
           </form>
           <p className="text-center text-sm text-muted-foreground mt-4">

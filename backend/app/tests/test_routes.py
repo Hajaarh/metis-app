@@ -25,9 +25,18 @@ class Reponse:
         self.session = session
 
 
+class FakeSupabaseAdmin:
+    def __init__(self):
+        self.utilisateurs_supprimes = []
+
+    def delete_user(self, user_id):
+        self.utilisateurs_supprimes.append(user_id)
+
+
 class FakeSupabaseAuth:
     def __init__(self):
         self.mots_de_passe = {}
+        self.admin = FakeSupabaseAdmin()
 
     def sign_up(self, identifiants):
         email = identifiants["email"]
@@ -54,11 +63,11 @@ class FakeSupabaseClient:
 class FakeRepository:
     def __init__(self):
         self.reunions = {}
+        self.consentements = {}
         self.compteur = 0
         self.attestations = []
-        self.consentements = []
 
-    def create_meeting(self, user_id, titre, audio_nom_fichier, audio_taille_octets, audio_mime_type):
+    def create_meeting(self, user_id, titre):
         self.compteur += 1
         meeting_id = str(self.compteur)
         self.reunions[meeting_id] = {
@@ -66,24 +75,50 @@ class FakeRepository:
             "utilisateur_id": user_id,
             "titre": titre,
             "statut_traitement": "en_attente",
-            "audio_nom_fichier": audio_nom_fichier,
-            "audio_taille_octets": audio_taille_octets,
-            "audio_mime_type": audio_mime_type,
         }
         return meeting_id
+
+    def set_audio_metadata(self, reunion_id, audio_nom_fichier, audio_taille_octets, audio_mime_type):
+        self.reunions[reunion_id]["audio_nom_fichier"] = audio_nom_fichier
+        self.reunions[reunion_id]["audio_taille_octets"] = audio_taille_octets
+        self.reunions[reunion_id]["audio_mime_type"] = audio_mime_type
 
     def save_attestation(self, reunion_id, user_id):
         self.attestations.append((reunion_id, user_id))
 
-    def save_participant_consent(self, reunion_id, accepte):
-        self.consentements.append((reunion_id, accepte))
+    def create_consent_link(self, reunion_id):
+        self.compteur += 1
+        jeton = f"jeton-{self.compteur}"
+        self.consentements[jeton] = {"reunion_id": reunion_id, "choix": "en_attente"}
+        return jeton
 
-    def list_meetings(self, user_id):
-        return [reunion for reunion in self.reunions.values() if reunion["utilisateur_id"] == user_id]
+    def submit_participant_consent(self, jeton, accepte):
+        if jeton not in self.consentements:
+            return False
+        self.consentements[jeton]["choix"] = "accepte" if accepte else "refuse"
+        return True
 
-    def get_meeting_detail(self, reunion_id, user_id):
+    def has_refused_consent(self, reunion_id):
+        return any(
+            consentement["reunion_id"] == reunion_id and consentement["choix"] == "refuse"
+            for consentement in self.consentements.values()
+        )
+
+    def list_meetings(self, user_id, recherche=None):
+        reunions = [reunion for reunion in self.reunions.values() if reunion["utilisateur_id"] == user_id]
+        if recherche:
+            reunions = [reunion for reunion in reunions if recherche.lower() in reunion["titre"].lower()]
+        return reunions
+
+    def get_meeting(self, reunion_id, user_id):
         reunion = self.reunions.get(reunion_id)
         if reunion is None or reunion["utilisateur_id"] != user_id:
+            return None
+        return reunion
+
+    def get_meeting_detail(self, reunion_id, user_id):
+        reunion = self.get_meeting(reunion_id, user_id)
+        if reunion is None:
             return None
         return {
             "reunion": reunion,
@@ -95,8 +130,7 @@ class FakeRepository:
         }
 
     def delete_meeting(self, reunion_id, user_id):
-        reunion = self.reunions.get(reunion_id)
-        if reunion is None or reunion["utilisateur_id"] != user_id:
+        if self.get_meeting(reunion_id, user_id) is None:
             return False
         del self.reunions[reunion_id]
         return True
@@ -107,6 +141,9 @@ class FakeRepository:
             "nombre_reunions": len(reunions),
             "nombre_reunions_terminees": 0,
             "nombre_actions": 0,
+            "duree_totale_secondes": 0,
+            "repartition_par_type": {},
+            "repartition_par_theme": {},
         }
 
     def create_user_profile(self, user_id, email, duree_retention_jours):
@@ -163,14 +200,15 @@ def client(fake_repository, fake_pipeline, fake_supabase_client):
     app.dependency_overrides.clear()
 
 
-def importer_reunion(client, consentement_organisateur=True, consentement_client=True, content_type="audio/wav"):
+def creer_reunion(client, titre="reunion test"):
+    return client.post("/meetings", json={"titre": titre})
+
+
+def uploader_audio(client, meeting_id, consentement_organisateur=True, content_type="audio/wav"):
     return client.post(
-        "/meetings/import",
+        f"/meetings/{meeting_id}/audio",
         files={"file": ("reunion.wav", b"contenu-audio", content_type)},
-        data={
-            "consentement_organisateur": str(consentement_organisateur).lower(),
-            "consentement_client": str(consentement_client).lower(),
-        },
+        data={"consentement_organisateur": str(consentement_organisateur).lower()},
     )
 
 
@@ -201,42 +239,80 @@ def test_login_identifiants_invalides(client):
     assert reponse.status_code == 401
 
 
-def test_import_meeting_format_non_supporte(client):
-    reponse = importer_reunion(client, content_type="text/plain")
+def test_creer_reunion_genere_un_jeton_de_consentement(client):
+    reponse = creer_reunion(client)
+    assert reponse.status_code == 201
+    corps = reponse.json()
+    assert corps["meeting_id"]
+    assert corps["jeton_consentement"]
+
+
+def test_upload_audio_meeting_introuvable(client):
+    reponse = uploader_audio(client, "introuvable")
+    assert reponse.status_code == 404
+
+
+def test_upload_audio_format_non_supporte(client):
+    meeting_id = creer_reunion(client).json()["meeting_id"]
+    reponse = uploader_audio(client, meeting_id, content_type="text/plain")
     assert reponse.status_code == 415
 
 
-def test_import_refus_organisateur(client, fake_repository):
-    reponse = importer_reunion(client, consentement_organisateur=False)
+def test_upload_audio_refus_organisateur(client, fake_repository):
+    meeting_id = creer_reunion(client).json()["meeting_id"]
+    reponse = uploader_audio(client, meeting_id, consentement_organisateur=False)
     assert reponse.status_code == 403
-    assert fake_repository.reunions == {}
     assert fake_repository.attestations == []
-    assert fake_repository.consentements == []
+    assert "audio_mime_type" not in fake_repository.reunions[meeting_id]
 
 
-def test_import_refus_client(client, fake_repository):
-    reponse = importer_reunion(client, consentement_client=False)
-    assert reponse.status_code == 403
-    assert fake_repository.reunions == {}
-    assert fake_repository.attestations == []
-    assert fake_repository.consentements == []
-
-
-def test_import_double_accord(client, fake_repository, fake_pipeline):
-    reponse = importer_reunion(client, consentement_organisateur=True, consentement_client=True)
+def test_upload_audio_accepte(client, fake_repository, fake_pipeline):
+    meeting_id = creer_reunion(client).json()["meeting_id"]
+    reponse = uploader_audio(client, meeting_id)
     assert reponse.status_code == 202
-    meeting_id = reponse.json()["meeting_id"]
     assert fake_repository.reunions[meeting_id]["audio_mime_type"] == "audio/wav"
     assert fake_repository.attestations == [(meeting_id, USER_ID)]
-    assert fake_repository.consentements == [(meeting_id, True)]
     assert fake_pipeline.appels == [(meeting_id, "reunion.wav")]
 
 
+def test_consentement_participant_accepte(client):
+    jeton = creer_reunion(client).json()["jeton_consentement"]
+    reponse = client.post(f"/consent/{jeton}", json={"accepte": True})
+    assert reponse.status_code == 200
+
+
+def test_consentement_participant_refuse(client):
+    jeton = creer_reunion(client).json()["jeton_consentement"]
+    reponse = client.post(f"/consent/{jeton}", json={"accepte": False})
+    assert reponse.status_code == 200
+
+
+def test_consentement_jeton_inconnu(client):
+    reponse = client.post("/consent/jeton-bidon", json={"accepte": True})
+    assert reponse.status_code == 404
+
+
 def test_list_meetings(client):
-    importer_reunion(client)
+    creer_reunion(client)
     reponse = client.get("/meetings")
     assert reponse.status_code == 200
     assert len(reponse.json()) == 1
+
+
+def test_list_meetings_avec_recherche(client):
+    creer_reunion(client, titre="Point budget Q3")
+    creer_reunion(client, titre="Recrutement backend")
+    reponse = client.get("/meetings", params={"recherche": "budget"})
+    assert reponse.status_code == 200
+    assert len(reponse.json()) == 1
+    assert reponse.json()[0]["titre"] == "Point budget Q3"
+
+
+def test_list_meetings_recherche_sans_resultat(client):
+    creer_reunion(client, titre="Point budget Q3")
+    reponse = client.get("/meetings", params={"recherche": "inexistant"})
+    assert reponse.status_code == 200
+    assert reponse.json() == []
 
 
 def test_get_meeting_introuvable(client):
@@ -246,14 +322,14 @@ def test_get_meeting_introuvable(client):
 
 
 def test_get_meeting(client):
-    meeting_id = importer_reunion(client).json()["meeting_id"]
+    meeting_id = creer_reunion(client).json()["meeting_id"]
     reponse = client.get(f"/meetings/{meeting_id}")
     assert reponse.status_code == 200
     assert reponse.json()["reunion"]["id"] == meeting_id
 
 
 def test_delete_meeting(client):
-    meeting_id = importer_reunion(client).json()["meeting_id"]
+    meeting_id = creer_reunion(client).json()["meeting_id"]
     reponse = client.delete(f"/meetings/{meeting_id}")
     assert reponse.status_code == 204
     assert client.get(f"/meetings/{meeting_id}").status_code == 404
@@ -265,19 +341,14 @@ def test_delete_meeting_introuvable(client):
 
 
 def test_dashboard_metrics(client):
-    importer_reunion(client)
+    creer_reunion(client)
     reponse = client.get("/dashboard/metrics")
     assert reponse.status_code == 200
     assert reponse.json()["nombre_reunions"] == 1
 
 
-def test_route_consent_supprimee(client):
-    reponse = client.post("/meetings/introuvable/consent")
-    assert reponse.status_code == 404
-
-
 def test_export_donnees_compte(client):
-    importer_reunion(client)
+    creer_reunion(client)
     reponse = client.get("/account/data")
     assert reponse.status_code == 200
     corps = reponse.json()
@@ -292,8 +363,13 @@ def test_export_donnees_compte_vide(client):
 
 
 def test_suppression_compte_efface_les_reunions(client, fake_repository):
-    importer_reunion(client)
+    creer_reunion(client)
     reponse = client.delete("/account")
     assert reponse.status_code == 204
     assert fake_repository.reunions == {}
     assert client.get("/meetings").json() == []
+
+
+def test_suppression_compte_supprime_l_acces_auth(client, fake_supabase_client):
+    client.delete("/account")
+    assert fake_supabase_client.auth.admin.utilisateurs_supprimes == [USER_ID]

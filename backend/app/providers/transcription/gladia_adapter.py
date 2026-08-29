@@ -6,10 +6,16 @@ from app.contracts.transcript import Segment, Transcript
 from app.providers.transcription.base import TranscriptionProvider
 
 SPEAKER_LETTERS = "ABCDEFGHIJKLMNOP"
-OPTIONS_TRANSCRIPTION = {
-    "diarization": True,
-    "language_config": {"languages": ["fr"]},
-}
+
+
+def build_transcription_options(langue: str, nombre_locuteurs: int | None) -> dict:
+    options: dict = {
+        "diarization": True,
+        "language_config": {"languages": [langue]},
+    }
+    if nombre_locuteurs:
+        options["diarization_config"] = {"number_of_speakers": nombre_locuteurs}
+    return options
 
 
 def build_speaker_label(speaker_index):
@@ -28,9 +34,13 @@ class GladiaAdapter(TranscriptionProvider):
     def __init__(self, api_key: str):
         self.client = GladiaClient(api_key=api_key).prerecorded_async()
 
-    async def transcribe(self, meeting_id: str, audio_file: bytes, file_name: str) -> Transcript:
+    async def transcribe(
+        self, meeting_id: str, audio_file: bytes, file_name: str,
+        langue: str = "fr", nombre_locuteurs: int | None = None,
+    ) -> Transcript:
         flux = build_audio_stream(audio_file, file_name)
-        reponse = await self.client.transcribe(flux, OPTIONS_TRANSCRIPTION)
+        options = build_transcription_options(langue, nombre_locuteurs)
+        reponse = await self.client.transcribe(flux, options)
         return self.to_transcript(meeting_id, reponse)
 
     def to_transcript(self, meeting_id: str, reponse) -> Transcript:

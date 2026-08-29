@@ -13,14 +13,33 @@ SYSTEM_PROMPT = (
     "Tu ne generes aucune information absente de la reunion. "
     "Si un responsable n'est pas nomme, laisse responsible a null. "
     "Si une date n'est pas dite, laisse due_date a null. "
+    "Si une date est relative comme vendredi ou la semaine prochaine, "
+    "tu la restitues telle qu'elle est dite, sans jamais la convertir en date absolue. "
     "Tu ne completes pas les passages marques inaudible. "
+    "Tu distingues clairement les trois categories suivantes. "
+    "Une decision est un choix explicitement acte pendant la reunion. "
+    "Un point cle est un element important discute sans qu'aucune decision ni action n'en decoule. "
+    "Une action est une tache concrete qui reste a faire apres la reunion. "
+    "Chaque ligne de la transcription est numerotee entre crochets. "
+    "Pour chaque decision et chaque action, tu indiques dans source_segment_index "
+    "le numero de la ligne qui appuie directement cette decision ou cette action. "
+    "Si aucune ligne precise ne l'appuie, tu laisses source_segment_index a null. "
     "Tu produis entre 1 et 6 themes. "
+    "Tu classes la reunion dans meeting_type selon une seule de ces quatre categories : "
+    "commercial pour un echange avec un prospect ou un client vise a vendre ou negocier, "
+    "interne pour un echange entre collegues de la meme organisation, "
+    "client pour un suivi avec un client deja engage sans dimension de vente, "
+    "administratif pour un sujet organisationnel interne comme les conges ou les notes de frais. "
+    "Si la transcription ne permet pas de trancher clairement entre ces quatre categories, "
+    "tu mets meeting_type a non_determine. "
     "Tu reponds uniquement avec l'objet JSON demande, sans texte autour."
 )
 
 
 def build_dialogue(transcript: Transcript) -> str:
-    lignes = [f"{segment.speaker_label}: {segment.text}" for segment in transcript.segments]
+    lignes = [
+        f"[{index}] {segment.speaker_label}: {segment.text}" for index, segment in enumerate(transcript.segments)
+    ]
     return "\n".join(lignes)
 
 
