@@ -456,7 +456,7 @@ class Repository:
     def dashboard_metrics(self, user_id: str) -> dict:
         reunions = (
             self.client.table(models.TABLE_REUNION)
-            .select("id, statut_traitement, duree_secondes, type_reunion")
+            .select("id, statut_traitement, duree_secondes, type_reunion, date_debut")
             .eq("utilisateur_id", user_id)
             .execute()
         )
@@ -469,6 +469,9 @@ class Repository:
             "duree_totale_secondes": self.duree_totale(reunions.data),
             "repartition_par_type": self.repartition_par_type(reunions.data),
             "repartition_par_theme": self.repartition_par_theme(reunion_ids),
+            "duree_par_type": self.duree_par_type(reunions.data),
+            "temps_parole": self.repartition_temps_parole(reunion_ids),
+            "par_mois": self.frequence_par_mois(reunions.data),
         }
 
     def duree_totale(self, reunions: list) -> int:
@@ -499,6 +502,61 @@ class Repository:
             nom = noms[theme_id]
             repartition[nom] = repartition.get(nom, 0) + 1
         return repartition
+
+    def duree_par_type(self, reunions: list) -> dict:
+        repartition: dict = {}
+        for ligne in reunions:
+            type_reunion = ligne.get("type_reunion")
+            duree = ligne.get("duree_secondes")
+            if type_reunion is None or duree is None:
+                continue
+            repartition[type_reunion] = repartition.get(type_reunion, 0) + duree
+        return repartition
+
+    def repartition_temps_parole(self, reunion_ids: list) -> dict:
+        if not reunion_ids:
+            return {}
+        segments = (
+            self.client.table(models.TABLE_SEGMENT)
+            .select("locuteur_id, horodatage_debut, horodatage_fin")
+            .in_("reunion_id", reunion_ids)
+            .execute()
+        )
+        if not segments.data:
+            return {}
+        locuteur_ids = list({seg["locuteur_id"] for seg in segments.data if seg["locuteur_id"]})
+        if not locuteur_ids:
+            return {}
+        locuteurs = (
+            self.client.table(models.TABLE_LOCUTEUR)
+            .select("id, label")
+            .in_("id", locuteur_ids)
+            .execute()
+        )
+        labels = {loc["id"]: loc["label"] for loc in locuteurs.data}
+        repartition: dict = {}
+        for seg in segments.data:
+            loc_id = seg.get("locuteur_id")
+            if not loc_id:
+                continue
+            label = labels.get(loc_id, "Inconnu")
+            duree = seg["horodatage_fin"] - seg["horodatage_debut"]
+            repartition[label] = repartition.get(label, 0) + duree
+        return {k: round(v) for k, v in repartition.items()}
+
+    def frequence_par_mois(self, reunions: list) -> list:
+        mois: dict = {}
+        for ligne in reunions:
+            date_debut = ligne.get("date_debut")
+            if not date_debut:
+                continue
+            periode = str(date_debut)[:7]
+            if periode not in mois:
+                mois[periode] = {"periode": periode, "nombre": 0, "duree_secondes": 0}
+            mois[periode]["nombre"] += 1
+            if ligne.get("duree_secondes"):
+                mois[periode]["duree_secondes"] += ligne["duree_secondes"]
+        return sorted(mois.values(), key=lambda x: x["periode"])
 
     def count_actions(self, reunion_ids: list) -> int:
         if not reunion_ids:
