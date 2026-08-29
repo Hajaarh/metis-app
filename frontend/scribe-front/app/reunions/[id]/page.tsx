@@ -34,6 +34,7 @@ interface Client {
 interface MeetingDetail {
   reunion: Reunion;
   jeton_consentement: string | null;
+  consentement_statut: string | null;
   segments: Segment[];
   locuteurs: Locuteur[];
   compte_rendu: CompteRendu | null;
@@ -82,6 +83,7 @@ export default function MeetingDetailPage({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [consentNotif, setConsentNotif] = useState<"accepte" | "refuse" | null>(null);
 
   useEffect(() => {
     apiFetch("/clients").then((r) => r.json()).then(setClients).catch(() => {});
@@ -109,6 +111,14 @@ export default function MeetingDetailPage({
 
     ws.onmessage = async (event) => {
       const msg = JSON.parse(event.data);
+      if (msg.type === "consentement") {
+        setDetail((prev) =>
+          prev ? { ...prev, consentement_statut: msg.choix } : prev
+        );
+        setConsentNotif(msg.choix);
+        setTimeout(() => setConsentNotif(null), 4000);
+        return;
+      }
       if (msg.type === "reunion") {
         setDetail((prev) =>
           prev
@@ -212,10 +222,11 @@ export default function MeetingDetailPage({
     );
   }
 
-  const { reunion, jeton_consentement, segments, locuteurs, compte_rendu, points_cles, decisions, actions } = detail;
+  const { reunion, jeton_consentement, consentement_statut, segments, locuteurs, compte_rendu, points_cles, decisions, actions } = detail;
   const isEnAttente = reunion.statut_traitement === "en_attente";
   const isProcessing = reunion.statut_traitement === "transcription" || reunion.statut_traitement === "analyse";
   const audioReady = audioSource === "import" ? importedFile !== null : recordedBlob !== null;
+  const consentBlocked = !!jeton_consentement && consentement_statut === "en_attente";
 
   return (
     <AppSidebar>
@@ -283,16 +294,43 @@ export default function MeetingDetailPage({
           {/* Consent link + audio upload — visible only when en_attente */}
           {isEnAttente && (
             <div className="space-y-6">
+              {/* Consent notification */}
+              {consentNotif && (
+                <div className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium ${
+                  consentNotif === "accepte"
+                    ? "bg-green-50 border border-green-200 text-green-700"
+                    : "bg-red-50 border border-red-200 text-red-700"
+                }`}>
+                  {consentNotif === "accepte" ? <Check size={14} /> : <AlertCircle size={14} />}
+                  {consentNotif === "accepte"
+                    ? "Le participant a accepté l'enregistrement."
+                    : "Le participant a refusé l'enregistrement."}
+                </div>
+              )}
+
               {/* Consent link */}
               {jeton_consentement && (
                 <div className="rounded-xl border border-border p-5 space-y-3">
-                  <div>
-                    <p className="text-[10.5px] uppercase tracking-widest font-medium text-muted-foreground mb-1">
-                      Lien de consentement
-                    </p>
-                    <p className="text-[13px] text-muted-foreground">
-                      Partagez ce lien aux participants <strong>avant</strong> de démarrer l&apos;enregistrement.
-                    </p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10.5px] uppercase tracking-widest font-medium text-muted-foreground mb-1">
+                        Lien de consentement
+                      </p>
+                      <p className="text-[13px] text-muted-foreground">
+                        Partagez ce lien aux participants <strong>avant</strong> de démarrer l&apos;enregistrement.
+                      </p>
+                    </div>
+                    {consentement_statut && (
+                      <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${
+                        consentement_statut === "accepte"
+                          ? "bg-green-100 text-green-700"
+                          : consentement_statut === "refuse"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-yellow-100 text-yellow-700"
+                      }`}>
+                        {consentement_statut === "accepte" ? "Signé" : consentement_statut === "refuse" ? "Refusé" : "En attente"}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 text-[12px] bg-muted px-3 py-2 rounded-lg truncate text-foreground">
@@ -355,9 +393,15 @@ export default function MeetingDetailPage({
 
                 {uploadError && <p className="text-sm text-destructive">{uploadError}</p>}
 
+                {consentBlocked && (
+                  <p className="text-[12.5px] text-yellow-600">
+                    En attente de la signature du participant avant de lancer la transcription.
+                  </p>
+                )}
+
                 <Button
                   onClick={handleUpload}
-                  disabled={!audioReady || uploading}
+                  disabled={!audioReady || uploading || consentBlocked}
                   className="w-full"
                 >
                   {uploading ? "Envoi en cours…" : "Lancer la transcription"}
