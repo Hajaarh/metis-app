@@ -199,17 +199,20 @@ class Repository:
         titre = reunion.data[0]["titre"] if reunion.data else ""
         return {"jeton": jeton, "reunion_titre": titre, "choix": consentement["choix"]}
 
-    def submit_participant_consent(self, jeton: str, accepte: bool) -> bool:
+    def submit_participant_consent(self, jeton: str, accepte: bool) -> str | None:
         existant = (
-            self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT).select("id").eq("jeton", jeton).execute()
+            self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT)
+            .select("id, reunion_id")
+            .eq("jeton", jeton)
+            .execute()
         )
         if not existant.data:
-            return False
+            return None
         choix = models.CHOIX_ACCEPTE if accepte else models.CHOIX_REFUSE
         self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT).update({"choix": choix}).eq(
             "jeton", jeton
         ).execute()
-        return True
+        return existant.data[0]["reunion_id"]
 
     def has_refused_consent(self, reunion_id: str) -> bool:
         reponse = (

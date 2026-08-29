@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
+from app.api.ws_manager import manager
 from app.core.deps import get_repository
 from app.db.repository import Repository
 
@@ -23,11 +24,14 @@ def get_consent(
 
 
 @router.post("/{jeton}")
-def submit_consent(
+async def submit_consent(
     jeton: str,
     reponse: ReponseConsentement,
     repository: Repository = Depends(get_repository),
 ):
-    if not repository.submit_participant_consent(jeton, reponse.accepte):
+    reunion_id = repository.submit_participant_consent(jeton, reponse.accepte)
+    if reunion_id is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="jeton introuvable")
+    choix = "accepte" if reponse.accepte else "refuse"
+    await manager.broadcast(reunion_id, {"type": "consentement", "choix": choix})
     return {"statut": "enregistre"}
