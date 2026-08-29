@@ -39,7 +39,8 @@ export default function NewMeetingPage() {
     apiFetch("/clients").then((r) => r.json()).then(setClients);
   }, []);
 
-  const canSubmit = titre.trim() && consentAccepted && !loading;
+  const needsConsent = mode === "dictaphone" && baseLegale === "consentement";
+  const canSubmit = titre.trim() && (!needsConsent || consentAccepted) && !loading;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -52,6 +53,7 @@ export default function NewMeetingPage() {
           titre,
           client_id: clientId || null,
           mode,
+          base_legale: baseLegale,
           langue,
           nombre_locuteurs: nombreLocuteurs > 0 ? nombreLocuteurs : null,
         }),
@@ -69,7 +71,7 @@ export default function NewMeetingPage() {
   return (
     <AppSidebar>
       {/* Header */}
-      <div className="flex items-center gap-3 px-8 pt-6 pb-4 shrink-0 border-b border-border">
+      <div className="flex items-center gap-3 px-4 sm:px-8 pt-6 pb-4 shrink-0 border-b border-border">
         <Link
           href="/"
           className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -81,7 +83,7 @@ export default function NewMeetingPage() {
 
       {/* Form */}
       <div className="flex-1 overflow-y-auto scrollbar-hide">
-        <div className="max-w-[600px] mx-auto px-8 py-8 space-y-6">
+        <div className="max-w-[600px] mx-auto px-4 sm:px-8 py-8 space-y-6">
           {/* Title */}
           <div className="space-y-2">
             <Label htmlFor="titre">Titre de la réunion</Label>
@@ -138,7 +140,7 @@ export default function NewMeetingPage() {
           </div>
 
           {/* Langue + nombre de locuteurs */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Langue parlée</Label>
               <Select value={langue} onValueChange={setLangue}>
@@ -213,7 +215,7 @@ export default function NewMeetingPage() {
           </div>
 
           {/* Consent */}
-          <ConsentBanner onAcceptedChange={setConsentAccepted} />
+          {needsConsent && <ConsentBanner onAcceptedChange={setConsentAccepted} />}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
