@@ -37,7 +37,7 @@ const TOOLTIP_STYLE = {
     fontSize: "12px",
     color: "hsl(var(--foreground))",
   },
-  cursor: { fill: "hsl(var(--muted))" },
+  cursor: { fill: "rgba(128,128,128,0.08)" },
 };
 
 const AXIS_TICK = { fontSize: 11, fill: "hsl(var(--muted-foreground))" };
