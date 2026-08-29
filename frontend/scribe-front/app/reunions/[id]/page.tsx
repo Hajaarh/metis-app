@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Calendar, Copy, Check } from "lucide-react";
+import { ArrowLeft, Calendar, Copy, Check, Loader2 } from "lucide-react";
 import { AppSidebar } from "@/app/components/AppSidebar";
 import { StatusDot, type BackendStatus } from "@/app/components/StatusDot";
 import { TranscriptView, type Segment, type Locuteur } from "@/app/components/TranscriptView";
@@ -162,6 +162,7 @@ export default function MeetingDetailPage({
 
   const { reunion, jeton_consentement, segments, locuteurs, compte_rendu, points_cles, decisions, actions } = detail;
   const isEnAttente = reunion.statut_traitement === "en_attente";
+  const isProcessing = reunion.statut_traitement === "transcription" || reunion.statut_traitement === "analyse";
   const audioReady = audioSource === "import" ? importedFile !== null : recordedBlob !== null;
 
   return (
@@ -294,11 +295,16 @@ export default function MeetingDetailPage({
                 {segments.length > 0 ? (
                   <TranscriptView meetingId={id} segments={segments} locuteurs={locuteurs} />
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center py-12">
-                    {reunion.statut_traitement === "termine"
-                      ? "Aucune transcription disponible."
-                      : "La transcription est en cours…"}
-                  </p>
+                  <div className="flex flex-col items-center gap-3 py-12">
+                    {isProcessing ? (
+                      <>
+                        <Loader2 size={22} className="animate-spin text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">La transcription est en cours…</p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Aucune transcription disponible.</p>
+                    )}
+                  </div>
                 )}
               </TabsContent>
 
@@ -311,11 +317,16 @@ export default function MeetingDetailPage({
                     actions={actions}
                   />
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center py-12">
-                    {reunion.statut_traitement === "termine"
-                      ? "Aucun compte rendu disponible."
-                      : "Le compte rendu sera généré après la transcription."}
-                  </p>
+                  <div className="flex flex-col items-center gap-3 py-12">
+                    {isProcessing ? (
+                      <>
+                        <Loader2 size={22} className="animate-spin text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">Le compte rendu sera généré après la transcription.</p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Aucun compte rendu disponible.</p>
+                    )}
+                  </div>
                 )}
               </TabsContent>
             </Tabs>
