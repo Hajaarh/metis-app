@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Mic, Calendar, Users, Settings, Plus, LogOut } from "lucide-react";
+import { Mic, Calendar, Users, Settings, Plus, LogOut, BarChart2 } from "lucide-react";
 import { MeetingAvatar } from "./MeetingAvatar";
 import { clearToken } from "@/app/lib/auth";
 import { apiFetch } from "@/app/lib/api";
@@ -14,6 +14,7 @@ interface AppSidebarProps {
 
 const NAV_ITEMS = [
   { href: "/", label: "Réunions", icon: Calendar },
+  { href: "/dashboard", label: "Tableau de bord", icon: BarChart2 },
   { href: "/clients", label: "Clients", icon: Users },
   { href: "/settings", label: "Paramètres", icon: Settings },
 ];
