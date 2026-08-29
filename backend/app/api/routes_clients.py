@@ -67,3 +67,21 @@ def delete_client(
     if not repository.delete_client(client_id, user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="client introuvable")
     return None
+
+
+@router.get("/{client_id}/actions")
+def get_client_actions(
+    client_id: str,
+    user_id: str = Depends(get_current_user_id),
+    repository: Repository = Depends(get_repository),
+):
+    return repository.client_actions(client_id, user_id)
+
+
+@router.get("/{client_id}/stats")
+def get_client_stats(
+    client_id: str,
+    user_id: str = Depends(get_current_user_id),
+    repository: Repository = Depends(get_repository),
+):
+    return repository.client_stats(client_id, user_id)
