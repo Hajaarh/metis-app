@@ -116,12 +116,12 @@ export default function DashboardPage() {
   return (
     <AppSidebar>
       {/* Header */}
-      <div className="flex items-center px-8 pt-6 pb-4 shrink-0 border-b border-border">
+      <div className="flex items-center px-4 sm:px-8 pt-6 pb-4 shrink-0 border-b border-border">
         <h1 className="text-xl font-medium text-foreground">Tableau de bord</h1>
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-hide">
-        <div className="max-w-[720px] mx-auto px-8 py-8 space-y-10">
+        <div className="max-w-[720px] mx-auto px-4 sm:px-8 py-8 space-y-10">
 
           {loading && (
             <p className="text-sm text-muted-foreground text-center py-12">Chargement…</p>
@@ -137,7 +137,7 @@ export default function DashboardPage() {
           {!loading && metrics && metrics.nombre_reunions > 0 && (
             <>
               {/* Stat cards */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <StatCard label="Réunions au total" value={metrics.nombre_reunions} icon={<Video size={16} />} />
                 <StatCard label="Réunions terminées" value={metrics.nombre_reunions_terminees} icon={<CheckCircle2 size={16} />} />
                 <StatCard label="Actions extraites" value={metrics.nombre_actions} icon={<ListTodo size={16} />} />

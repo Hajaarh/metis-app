@@ -34,7 +34,8 @@ interface Client {
 interface MeetingDetail {
   reunion: Reunion;
   jeton_consentement: string | null;
-  consentement_statut: string | null;
+  consentements_signes: number;
+  consentements_total: number;
   segments: Segment[];
   locuteurs: Locuteur[];
   compte_rendu: CompteRendu | null;
@@ -83,7 +84,8 @@ export default function MeetingDetailPage({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [copied, setCopied] = useState(false);
-  const [consentNotif, setConsentNotif] = useState<"accepte" | "refuse" | null>(null);
+  const [consentNotif, setConsentNotif] = useState<"accepte" | "refuse" | "retractation" | null>(null);
+  const [forceStop, setForceStop] = useState(false);
 
   useEffect(() => {
     apiFetch("/clients").then((r) => r.json()).then(setClients).catch(() => {});
@@ -113,10 +115,15 @@ export default function MeetingDetailPage({
       const msg = JSON.parse(event.data);
       if (msg.type === "consentement") {
         setDetail((prev) =>
-          prev ? { ...prev, consentement_statut: msg.choix } : prev
+          prev ? { ...prev, consentements_signes: msg.signes, consentements_total: msg.total } : prev
         );
-        setConsentNotif(msg.choix);
-        setTimeout(() => setConsentNotif(null), 4000);
+        if (msg.retractation) {
+          setForceStop(true);
+          setConsentNotif("retractation");
+        } else {
+          setConsentNotif(msg.choix);
+        }
+        setTimeout(() => setConsentNotif(null), 5000);
         return;
       }
       if (msg.type === "reunion") {
@@ -195,8 +202,9 @@ export default function MeetingDetailPage({
     );
   }
 
-  function copyConsentLink(jeton: string) {
-    const url = `${window.location.origin}/consent/${jeton}`;
+  function copyConsentLink() {
+    if (!detail?.jeton_consentement) return;
+    const url = `${window.location.origin}/consent/${detail.jeton_consentement}`;
     navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -222,16 +230,16 @@ export default function MeetingDetailPage({
     );
   }
 
-  const { reunion, jeton_consentement, consentement_statut, segments, locuteurs, compte_rendu, points_cles, decisions, actions } = detail;
+  const { reunion, jeton_consentement, consentements_signes, consentements_total, segments, locuteurs, compte_rendu, points_cles, decisions, actions } = detail;
   const isEnAttente = reunion.statut_traitement === "en_attente";
   const isProcessing = reunion.statut_traitement === "transcription" || reunion.statut_traitement === "analyse";
   const audioReady = audioSource === "import" ? importedFile !== null : recordedBlob !== null;
-  const consentBlocked = !!jeton_consentement && consentement_statut === "en_attente";
+  const consentBlocked = !!jeton_consentement && consentements_signes < consentements_total;
 
   return (
     <AppSidebar>
       {/* Header */}
-      <div className="px-8 pt-6 pb-4 shrink-0 border-b border-border">
+      <div className="px-4 sm:px-8 pt-6 pb-4 shrink-0 border-b border-border">
         <div className="flex items-center gap-3 mb-3">
           <Link
             href="/"
@@ -289,7 +297,7 @@ export default function MeetingDetailPage({
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto scrollbar-hide">
-        <div className="max-w-[680px] mx-auto px-8 py-8 space-y-8">
+        <div className="max-w-[680px] mx-auto px-4 sm:px-8 py-8 space-y-8">
 
           {/* Consent link + audio upload — visible only when en_attente */}
           {isEnAttente && (
@@ -302,9 +310,11 @@ export default function MeetingDetailPage({
                     : "bg-red-50 border border-red-200 text-red-700"
                 }`}>
                   {consentNotif === "accepte" ? <Check size={14} /> : <AlertCircle size={14} />}
-                  {consentNotif === "accepte"
-                    ? "Le participant a accepté l'enregistrement."
-                    : "Le participant a refusé l'enregistrement."}
+                  {consentNotif === "retractation"
+                    ? "Un participant a rétracté son consentement. L'enregistrement a été arrêté."
+                    : consentNotif === "accepte"
+                    ? `Un participant a accepté (${consentements_signes}/${consentements_total}).`
+                    : "Un participant a refusé l'enregistrement."}
                 </div>
               )}
 
@@ -320,17 +330,15 @@ export default function MeetingDetailPage({
                         Partagez ce lien aux participants <strong>avant</strong> de démarrer l&apos;enregistrement.
                       </p>
                     </div>
-                    {consentement_statut && (
-                      <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${
-                        consentement_statut === "accepte"
-                          ? "bg-green-100 text-green-700"
-                          : consentement_statut === "refuse"
-                          ? "bg-red-100 text-red-700"
-                          : "bg-yellow-100 text-yellow-700"
-                      }`}>
-                        {consentement_statut === "accepte" ? "Signé" : consentement_statut === "refuse" ? "Refusé" : "En attente"}
-                      </span>
-                    )}
+                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${
+                      consentements_signes >= consentements_total
+                        ? "bg-green-100 text-green-700"
+                        : consentements_signes > 0
+                        ? "bg-yellow-100 text-yellow-700"
+                        : "bg-muted text-muted-foreground"
+                    }`}>
+                      {consentements_signes}/{consentements_total} signé{consentements_total > 1 ? "s" : ""}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 text-[12px] bg-muted px-3 py-2 rounded-lg truncate text-foreground">
@@ -338,11 +346,7 @@ export default function MeetingDetailPage({
                         ? `${window.location.origin}/consent/${jeton_consentement}`
                         : `/consent/${jeton_consentement}`}
                     </code>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => copyConsentLink(jeton_consentement)}
-                    >
+                    <Button variant="outline" size="sm" onClick={copyConsentLink}>
                       {copied ? <Check size={14} /> : <Copy size={14} />}
                       {copied ? "Copié" : "Copier"}
                     </Button>
@@ -362,7 +366,7 @@ export default function MeetingDetailPage({
                 </div>
 
                 {reunion.mode === "visio" ? (
-                  <TabCaptureRecorder onBlobReady={setRecordedBlob} />
+                  <TabCaptureRecorder onBlobReady={setRecordedBlob} forceStop={forceStop} />
                 ) : (
                   <>
                     {/* Source toggle — dictaphone only */}
@@ -384,7 +388,7 @@ export default function MeetingDetailPage({
                       })}
                     </div>
                     {audioSource === "record" ? (
-                      <AudioRecorder onBlobReady={setRecordedBlob} />
+                      <AudioRecorder onBlobReady={setRecordedBlob} forceStop={forceStop} />
                     ) : (
                       <AudioImport onFileChange={setImportedFile} />
                     )}

@@ -14,6 +14,7 @@ class NouvelleReunion(BaseModel):
     titre: str
     client_id: str | None = None
     mode: str = "dictaphone"
+    base_legale: str = "consentement"
     langue: str = "fr"
     nombre_locuteurs: int | None = None
 
@@ -44,12 +45,12 @@ def create_meeting(
     user_id: str = Depends(get_current_user_id),
     repository: Repository = Depends(get_repository),
 ):
-    meeting_id = repository.create_meeting(
+    meeting = repository.create_meeting(
         user_id, nouvelle_reunion.titre, nouvelle_reunion.client_id,
-        nouvelle_reunion.mode, nouvelle_reunion.langue, nouvelle_reunion.nombre_locuteurs,
+        nouvelle_reunion.mode, nouvelle_reunion.base_legale,
+        nouvelle_reunion.langue, nouvelle_reunion.nombre_locuteurs,
     )
-    jeton = repository.create_consent_link(meeting_id)
-    return {"meeting_id": meeting_id, "jeton_consentement": jeton}
+    return {"meeting_id": meeting["id"], "jeton_consentement": meeting.get("jeton_consentement")}
 
 
 @router.post("/{meeting_id}/audio", status_code=status.HTTP_202_ACCEPTED)
@@ -62,7 +63,8 @@ async def upload_audio(
     repository: Repository = Depends(get_repository),
     pipeline: MeetingPipeline = Depends(get_pipeline),
 ):
-    if repository.get_meeting(meeting_id, user_id) is None:
+    meeting = repository.get_meeting(meeting_id, user_id)
+    if meeting is None:
         raise reunion_introuvable()
     if file.content_type not in TYPES_AUDIO_AUTORISES:
         raise HTTPException(
@@ -73,13 +75,14 @@ async def upload_audio(
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="fichier trop volumineux"
         )
-    if not consentement_organisateur:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="consentement organisateur obligatoire"
-        )
-    meeting = repository.get_meeting(meeting_id, user_id)
+    from app.db import models as _models
+    if meeting.get("base_legale") != _models.BASE_LEGALE_INTERET_LEGITIME:
+        if not consentement_organisateur:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="consentement organisateur obligatoire"
+            )
+        repository.save_attestation(meeting_id, user_id)
     repository.set_audio_metadata(meeting_id, file.filename, len(audio_file), file.content_type)
-    repository.save_attestation(meeting_id, user_id)
     background_tasks.add_task(
         pipeline.run, meeting_id, audio_file, file.filename,
         meeting.get("langue", "fr"), meeting.get("nombre_locuteurs"),

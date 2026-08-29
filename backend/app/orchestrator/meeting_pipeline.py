@@ -38,12 +38,14 @@ class MeetingPipeline:
         self, reunion_id: str, audio_file: bytes, file_name: str,
         langue: str = "fr", nombre_locuteurs: int | None = None,
     ) -> MeetingIntelligence:
-        if not self.repository.has_attestation(reunion_id):
-            self.repository.set_meeting_status(reunion_id, models.STATUT_ATTESTATION_MANQUANTE)
-            raise AttestationManquanteError(reunion_id)
-        if self.repository.has_refused_consent(reunion_id):
-            self.repository.set_meeting_status(reunion_id, models.STATUT_CONSENTEMENT_REFUSE)
-            raise ConsentementRefuseError(reunion_id)
+        base_legale = self.repository.get_meeting_base_legale(reunion_id)
+        if base_legale != models.BASE_LEGALE_INTERET_LEGITIME:
+            if not self.repository.has_attestation(reunion_id):
+                self.repository.set_meeting_status(reunion_id, models.STATUT_ATTESTATION_MANQUANTE)
+                raise AttestationManquanteError(reunion_id)
+            if self.repository.has_refused_consent(reunion_id):
+                self.repository.set_meeting_status(reunion_id, models.STATUT_CONSENTEMENT_REFUSE)
+                raise ConsentementRefuseError(reunion_id)
         try:
             self.repository.set_meeting_status(reunion_id, models.STATUT_TRANSCRIPTION)
             await manager.broadcast(reunion_id, {"type": "reunion", "statut_traitement": models.STATUT_TRANSCRIPTION, "message_erreur": None})

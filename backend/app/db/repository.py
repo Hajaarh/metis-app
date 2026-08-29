@@ -109,14 +109,16 @@ class Repository:
 
     def create_meeting(
         self, user_id: str, titre: str, client_id: str | None = None,
-        mode: str = models.MODE_DICTAPHONE, langue: str = "fr", nombre_locuteurs: int | None = None,
-    ) -> str:
+        mode: str = models.MODE_DICTAPHONE, base_legale: str = models.BASE_LEGALE_CONSENTEMENT,
+        langue: str = "fr", nombre_locuteurs: int | None = None,
+    ) -> dict:
+        import uuid as _uuid
         ligne = {
             "utilisateur_id": user_id,
             "mode": mode,
             "titre": titre,
             "date_debut": now_iso(),
-            "base_legale": models.BASE_LEGALE_CONSENTEMENT,
+            "base_legale": base_legale,
             "statut_traitement": models.STATUT_EN_ATTENTE,
             "audio_purge": False,
             "langue": langue,
@@ -125,8 +127,10 @@ class Repository:
             ligne["client_id"] = client_id
         if nombre_locuteurs:
             ligne["nombre_locuteurs"] = nombre_locuteurs
+        if base_legale == models.BASE_LEGALE_CONSENTEMENT and mode != models.MODE_DICTAPHONE:
+            ligne["jeton_consentement"] = str(_uuid.uuid4())
         reponse = self.client.table(models.TABLE_REUNION).insert(ligne).execute()
-        return reponse.data[0]["id"]
+        return reponse.data[0]
 
     def _update_meeting(self, reunion_id: str, valeurs: dict) -> None:
         self.client.table(models.TABLE_REUNION).update(valeurs).eq("id", reunion_id).execute()
@@ -168,51 +172,75 @@ class Repository:
         reponse = self.client.table(models.TABLE_ATTESTATION).insert(ligne).execute()
         return reponse.data[0]
 
-    def create_consent_link(self, reunion_id: str) -> str:
-        import uuid
-
-        jeton = str(uuid.uuid4())
-        ligne = {
-            "reunion_id": reunion_id,
-            "jeton": jeton,
-            "choix": models.CHOIX_EN_ATTENTE,
-        }
-        self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT).insert(ligne).execute()
-        return jeton
-
     def get_consent_context(self, jeton: str) -> dict | None:
-        reponse = (
-            self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT)
-            .select("jeton, choix, reunion_id")
-            .eq("jeton", jeton)
-            .execute()
-        )
-        if not reponse.data:
-            return None
-        consentement = reponse.data[0]
         reunion = (
             self.client.table(models.TABLE_REUNION)
-            .select("titre")
-            .eq("id", consentement["reunion_id"])
+            .select("id, titre, nombre_locuteurs, jeton_consentement")
+            .eq("jeton_consentement", jeton)
             .execute()
         )
-        titre = reunion.data[0]["titre"] if reunion.data else ""
-        return {"jeton": jeton, "reunion_titre": titre, "choix": consentement["choix"]}
+        if not reunion.data:
+            return None
+        r = reunion.data[0]
+        counts = self.get_consent_count(r["id"], r.get("nombre_locuteurs"))
+        return {"jeton": jeton, "reunion_titre": r["titre"], "signes": counts["signes"], "total": counts["total"]}
 
-    def submit_participant_consent(self, jeton: str, accepte: bool) -> str | None:
+    def get_consent_count(self, reunion_id: str, nombre_locuteurs: int | None = None) -> dict:
+        if nombre_locuteurs is None:
+            row = self.client.table(models.TABLE_REUNION).select("nombre_locuteurs").eq("id", reunion_id).execute()
+            nombre_locuteurs = row.data[0].get("nombre_locuteurs") if row.data else None
+        total = nombre_locuteurs if (nombre_locuteurs and nombre_locuteurs > 0) else 1
+        reponse = (
+            self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT)
+            .select("choix")
+            .eq("reunion_id", reunion_id)
+            .execute()
+        )
+        signes = sum(1 for r in reponse.data if r["choix"] == models.CHOIX_ACCEPTE)
+        return {"signes": signes, "total": total}
+
+    def submit_participant_consent(self, jeton_collectif: str, accepte: bool) -> dict | None:
+        import uuid as _uuid
+        reunion = (
+            self.client.table(models.TABLE_REUNION)
+            .select("id")
+            .eq("jeton_consentement", jeton_collectif)
+            .execute()
+        )
+        if not reunion.data:
+            return None
+        reunion_id = reunion.data[0]["id"]
+        choix = models.CHOIX_ACCEPTE if accepte else models.CHOIX_REFUSE
+        jeton_retractation = str(_uuid.uuid4())
+        self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT).insert({
+            "reunion_id": reunion_id,
+            "jeton": jeton_retractation,
+            "choix": choix,
+        }).execute()
+        return {"reunion_id": reunion_id, "jeton_retractation": jeton_retractation}
+
+    def retract_consent(self, jeton_retractation: str) -> str | None:
         existant = (
             self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT)
             .select("id, reunion_id")
-            .eq("jeton", jeton)
+            .eq("jeton", jeton_retractation)
             .execute()
         )
         if not existant.data:
             return None
-        choix = models.CHOIX_ACCEPTE if accepte else models.CHOIX_REFUSE
-        self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT).update({"choix": choix}).eq(
-            "jeton", jeton
-        ).execute()
+        self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT).update(
+            {"choix": models.CHOIX_REFUSE}
+        ).eq("jeton", jeton_retractation).execute()
         return existant.data[0]["reunion_id"]
+
+    def get_meeting_base_legale(self, reunion_id: str) -> str | None:
+        reponse = (
+            self.client.table(models.TABLE_REUNION)
+            .select("base_legale")
+            .eq("id", reunion_id)
+            .execute()
+        )
+        return reponse.data[0]["base_legale"] if reponse.data else None
 
     def has_refused_consent(self, reunion_id: str) -> bool:
         reponse = (
@@ -387,16 +415,17 @@ class Repository:
             .eq("reunion_id", reunion_id)
             .execute()
         )
-        consentement = (
-            self.client.table(models.TABLE_CONSENTEMENT_PARTICIPANT)
-            .select("jeton, choix")
-            .eq("reunion_id", reunion_id)
-            .execute()
-        )
+        jeton_consentement = reunion.get("jeton_consentement")
+        consentements_signes, consentements_total = 0, 0
+        if jeton_consentement:
+            counts = self.get_consent_count(reunion_id, reunion.get("nombre_locuteurs"))
+            consentements_signes = counts["signes"]
+            consentements_total = counts["total"]
         detail = {
             "reunion": reunion,
-            "jeton_consentement": consentement.data[0]["jeton"] if consentement.data else None,
-            "consentement_statut": consentement.data[0]["choix"] if consentement.data else None,
+            "jeton_consentement": jeton_consentement,
+            "consentements_signes": consentements_signes,
+            "consentements_total": consentements_total,
             "segments": segments.data,
             "locuteurs": locuteurs.data,
             "compte_rendu": None,
