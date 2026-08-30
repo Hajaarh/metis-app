@@ -482,13 +482,17 @@ class Repository:
         self.client.table(models.TABLE_REUNION).delete().eq("id", reunion_id).execute()
         return True
 
-    def dashboard_metrics(self, user_id: str) -> dict:
-        reunions = (
+    def dashboard_metrics(self, user_id: str, date_debut: str | None = None, date_fin: str | None = None) -> dict:
+        query = (
             self.client.table(models.TABLE_REUNION)
             .select("id, statut_traitement, duree_secondes, type_reunion, date_debut")
             .eq("utilisateur_id", user_id)
-            .execute()
         )
+        if date_debut:
+            query = query.gte("date_debut", date_debut)
+        if date_fin:
+            query = query.lte("date_debut", date_fin)
+        reunions = query.execute()
         terminees = [ligne for ligne in reunions.data if ligne["statut_traitement"] == models.STATUT_TERMINE]
         reunion_ids = [ligne["id"] for ligne in reunions.data]
         return {

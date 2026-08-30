@@ -13,6 +13,7 @@ export function AudioRecorder({ onBlobReady, forceStop }: AudioRecorderProps) {
   const [state, setState] = useState<"idle" | "recording" | "paused" | "done">("idle");
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState("");
+  const [canPause, setCanPause] = useState(true);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -26,11 +27,22 @@ export function AudioRecorder({ onBlobReady, forceStop }: AudioRecorderProps) {
 
   useEffect(() => {
     if (forceStop && (state === "recording" || state === "paused")) stopRecording();
-  }, [forceStop]);
+  }, [forceStop, state]);
 
   const minutes = Math.floor(elapsed / 60);
   const seconds = elapsed % 60;
   const timeStr = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+
+  function getSupportedMimeType(): string {
+    const candidates = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/mp4",
+      "audio/ogg;codecs=opus",
+      "audio/ogg",
+    ];
+    return candidates.find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
+  }
 
   async function startRecording() {
     setError("");
@@ -39,7 +51,10 @@ export function AudioRecorder({ onBlobReady, forceStop }: AudioRecorderProps) {
       streamRef.current = stream;
       chunksRef.current = [];
 
-      const recorder = new MediaRecorder(stream);
+      const mimeType = getSupportedMimeType();
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (e) => {
@@ -47,12 +62,13 @@ export function AudioRecorder({ onBlobReady, forceStop }: AudioRecorderProps) {
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const type = mimeType || recorder.mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type });
         onBlobReady(blob);
         streamRef.current?.getTracks().forEach((t) => t.stop());
       };
 
-      recorder.start();
+      recorder.start(1000);
       setState("recording");
     } catch {
       setError("Impossible d'accéder au microphone. Vérifiez les permissions.");
@@ -61,11 +77,19 @@ export function AudioRecorder({ onBlobReady, forceStop }: AudioRecorderProps) {
 
   function togglePause() {
     if (state === "recording") {
-      mediaRecorderRef.current?.pause();
-      setState("paused");
+      try {
+        mediaRecorderRef.current?.pause();
+        setState("paused");
+      } catch {
+        setCanPause(false);
+      }
     } else {
-      mediaRecorderRef.current?.resume();
-      setState("recording");
+      try {
+        mediaRecorderRef.current?.resume();
+        setState("recording");
+      } catch {
+        setCanPause(false);
+      }
     }
   }
 
@@ -110,14 +134,16 @@ export function AudioRecorder({ onBlobReady, forceStop }: AudioRecorderProps) {
 
         {(state === "recording" || state === "paused") && (
           <>
-            <Button
-              variant="outline"
-              size="icon"
-              className="rounded-full h-10 w-10"
-              onClick={togglePause}
-            >
-              {state === "recording" ? <Pause size={16} /> : <Play size={16} />}
-            </Button>
+            {canPause && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-full h-10 w-10"
+                onClick={togglePause}
+              >
+                {state === "recording" ? <Pause size={16} /> : <Play size={16} />}
+              </Button>
+            )}
             <Button
               variant="destructive"
               size="icon"

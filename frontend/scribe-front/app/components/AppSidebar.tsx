@@ -28,7 +28,8 @@ export function AppSidebar({ children }: AppSidebarProps) {
   useEffect(() => {
     apiFetch("/account/profile")
       .then((r) => r.ok ? r.json() : null)
-      .then((p) => { if (p?.email) setEmail(p.email); });
+      .then((p) => { if (p?.email) setEmail(p.email); })
+      .catch(() => {});
   }, []);
 
   function handleLogout() {

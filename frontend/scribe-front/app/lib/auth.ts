@@ -8,7 +8,7 @@ export function getToken(): string | null {
 
 export function setToken(token: string): void {
   localStorage.setItem(TOKEN_KEY, token);
-  document.cookie = `${COOKIE_NAME}=${token}; path=/; SameSite=Lax`;
+  document.cookie = `${COOKIE_NAME}=${token}; path=/; SameSite=Lax; max-age=${7 * 24 * 3600}`;
 }
 
 export function clearToken(): void {

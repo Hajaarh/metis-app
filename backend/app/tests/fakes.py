@@ -10,7 +10,10 @@ class FakeTranscriptionProvider(TranscriptionProvider):
         self.erreur = erreur
         self.appels = []
 
-    async def transcribe(self, meeting_id: str, audio_file: bytes, file_name: str) -> Transcript:
+    async def transcribe(
+        self, meeting_id: str, audio_file: bytes, file_name: str,
+        langue: str = "fr", nombre_locuteurs: int | None = None,
+    ) -> Transcript:
         self.appels.append((meeting_id, file_name))
         if self.erreur is not None:
             raise self.erreur
