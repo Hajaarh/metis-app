@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     supabase_service_key: str = ""
     max_upload_mb: int = 1024
     default_retention_days: int = 30
+    frontend_url: str = "http://localhost:3000"
 
 
 settings = Settings()

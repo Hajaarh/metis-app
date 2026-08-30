@@ -60,6 +60,7 @@ export default function DashboardPage() {
     apiFetch("/meetings")
       .then((r) => r.ok ? r.json() : [])
       .then(setReunions)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
