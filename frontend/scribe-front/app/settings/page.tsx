@@ -36,6 +36,12 @@ export default function SettingsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordChanged, setPasswordChanged] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+
   useEffect(() => {
     Promise.all([
       apiFetch("/account/profile").then((r) => r.json()),
@@ -44,7 +50,7 @@ export default function SettingsPage() {
       setEmail(profile.email ?? "");
       setRetention(profile.duree_retention_jours?.toString() ?? "30");
       setClients(clientList);
-    }).finally(() => setLoading(false));
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   async function handleSave() {
@@ -94,6 +100,32 @@ export default function SettingsPage() {
     });
     if (r.ok) {
       setClients((prev) => prev.map((c) => c.id === id ? { ...c, nom } : c));
+    }
+  }
+
+  async function handleChangePassword() {
+    if (newPassword.length < 8) {
+      setPasswordError("Le mot de passe doit contenir au moins 8 caractères.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Les mots de passe ne correspondent pas.");
+      return;
+    }
+    setPasswordError("");
+    setChangingPassword(true);
+    const r = await apiFetch("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ new_password: newPassword }),
+    }).catch(() => null);
+    setChangingPassword(false);
+    if (r?.ok || r?.status === 204) {
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordChanged(true);
+      setTimeout(() => setPasswordChanged(false), 3000);
+    } else {
+      setPasswordError("Changement impossible. Réessayez.");
     }
   }
 
@@ -149,6 +181,48 @@ export default function SettingsPage() {
                 <Label>Email</Label>
                 <Input value={loading ? "…" : email} disabled />
                 <p className="text-[11px] text-muted-foreground">L&apos;email ne peut pas être modifié.</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Mot de passe</CardTitle>
+              <CardDescription>Choisissez un nouveau mot de passe</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-password">Nouveau mot de passe</Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={newPassword}
+                  onChange={(e) => { setNewPassword(e.target.value); setPasswordError(""); }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Confirmer</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => { setConfirmPassword(e.target.value); setPasswordError(""); }}
+                />
+              </div>
+              {passwordError && <p className="text-[12px] text-destructive">{passwordError}</p>}
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={handleChangePassword}
+                  disabled={changingPassword || !newPassword || !confirmPassword}
+                  variant="outline"
+                >
+                  {changingPassword ? "Mise à jour…" : "Mettre à jour"}
+                </Button>
+                {passwordChanged && (
+                  <span className="text-sm text-[#5E9E72]">Mot de passe mis à jour !</span>
+                )}
               </div>
             </CardContent>
           </Card>

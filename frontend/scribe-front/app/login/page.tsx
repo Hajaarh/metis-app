@@ -95,12 +95,17 @@ export default function LoginPage() {
               {loading ? "Connexion…" : "Se connecter"}
             </Button>
           </form>
-          <p className="text-center text-sm text-muted-foreground mt-4">
-            Pas encore de compte ?{" "}
-            <Link href="/register" className="text-primary hover:underline">
-              Créer un compte
+          <div className="flex flex-col items-center gap-2 mt-4">
+            <p className="text-sm text-muted-foreground">
+              Pas encore de compte ?{" "}
+              <Link href="/register" className="text-primary hover:underline">
+                Créer un compte
+              </Link>
+            </p>
+            <Link href="/forgot-password" className="text-[12.5px] text-muted-foreground hover:text-foreground transition-colors">
+              Mot de passe oublié ?
             </Link>
-          </p>
+          </div>
         </CardContent>
       </Card>
     </div>

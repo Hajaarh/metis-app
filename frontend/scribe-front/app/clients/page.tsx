@@ -51,7 +51,7 @@ export default function ClientsPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    apiFetch("/clients").then((r) => r.json()).then(setClients).finally(() => setLoading(false));
+    apiFetch("/clients").then((r) => r.json()).then(setClients).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const filtered = clients.filter((c) =>

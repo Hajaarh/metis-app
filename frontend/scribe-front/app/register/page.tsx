@@ -182,12 +182,17 @@ export default function RegisterPage() {
               {loading ? "Création…" : "Créer mon compte"}
             </Button>
           </form>
-          <p className="text-center text-sm text-muted-foreground mt-4">
-            Déjà un compte ?{" "}
-            <Link href="/login" className="text-primary hover:underline">
-              Se connecter
+          <div className="flex flex-col items-center gap-2 mt-4">
+            <p className="text-sm text-muted-foreground">
+              Déjà un compte ?{" "}
+              <Link href="/login" className="text-primary hover:underline">
+                Se connecter
+              </Link>
+            </p>
+            <Link href="/forgot-password" className="text-[12.5px] text-muted-foreground hover:text-foreground transition-colors">
+              Mot de passe oublié ?
             </Link>
-          </p>
+          </div>
         </CardContent>
       </Card>
     </div>

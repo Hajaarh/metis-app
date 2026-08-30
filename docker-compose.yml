@@ -31,6 +31,7 @@ services:
       - MISTRAL_API_KEY=${MISTRAL_API_KEY}
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - FRONTEND_URL=${FRONTEND_URL}
     ports:
       - "8000:8000"
     networks:
