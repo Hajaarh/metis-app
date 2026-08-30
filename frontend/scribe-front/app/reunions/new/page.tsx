@@ -36,7 +36,7 @@ export default function NewMeetingPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    apiFetch("/clients").then((r) => r.json()).then(setClients);
+    apiFetch("/clients").then((r) => r.json()).then(setClients).catch(() => {});
   }, []);
 
   const needsConsent = mode === "dictaphone" && baseLegale === "consentement";
