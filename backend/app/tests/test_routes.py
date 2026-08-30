@@ -178,7 +178,7 @@ class FakeRepository:
         del self.reunions[reunion_id]
         return True
 
-    def dashboard_metrics(self, user_id):
+    def dashboard_metrics(self, user_id, date_debut=None, date_fin=None):
         reunions = self.list_meetings(user_id)
         return {
             "nombre_reunions": len(reunions),
