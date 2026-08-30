@@ -161,6 +161,7 @@ export default function DashboardPage() {
     apiFetch(`/dashboard/metrics${qs}`)
       .then((r) => r.ok ? r.json() : null)
       .then(setMetrics)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [preset, customDebut, customFin]);
 

@@ -44,7 +44,7 @@ export default function SettingsPage() {
       setEmail(profile.email ?? "");
       setRetention(profile.duree_retention_jours?.toString() ?? "30");
       setClients(clientList);
-    }).finally(() => setLoading(false));
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   async function handleSave() {
