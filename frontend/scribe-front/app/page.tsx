@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Search, MoreHorizontal, Trash2, Pencil } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Trash2, Pencil, ChevronDown, ChevronRight } from "lucide-react";
 import { AppSidebar } from "@/app/components/AppSidebar";
 import { StatusDot, type BackendStatus } from "@/app/components/StatusDot";
 import { Button } from "@/app/components/ui/button";
@@ -19,32 +19,32 @@ interface Reunion {
 
 function formatTime(dateStr: string): string {
   return new Date(dateStr).toLocaleString("fr-FR", {
-    day: "numeric",
-    month: "short",
     hour: "2-digit",
     minute: "2-digit",
   });
 }
 
-function getGroup(dateStr: string): "today" | "yesterday" | "week" | "older" {
+function toDayKey(dateStr: string): string {
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function getTodayKey(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+}
+
+function dayLabel(dateStr: string): string {
   const d = new Date(dateStr);
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
-  const weekAgo = new Date(today); weekAgo.setDate(today.getDate() - 7);
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
   const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  if (day.getTime() === today.getTime()) return "today";
-  if (day.getTime() === yesterday.getTime()) return "yesterday";
-  if (day >= weekAgo) return "week";
-  return "older";
+  if (day.getTime() === today.getTime()) return "Aujourd'hui";
+  if (day.getTime() === yesterday.getTime()) return "Hier";
+  return d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
 }
-
-const GROUP_LABELS: Record<string, string> = {
-  today: "Aujourd'hui",
-  yesterday: "Hier",
-  week: "Cette semaine",
-  older: "Plus ancien",
-};
 
 export default function DashboardPage() {
   const [reunions, setReunions] = useState<Reunion[]>([]);
@@ -55,6 +55,7 @@ export default function DashboardPage() {
   const [renameDraft, setRenameDraft] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"date" | "type">("date");
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     apiFetch("/meetings")
@@ -63,6 +64,14 @@ export default function DashboardPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  function toggleDay(key: string) {
+    setExpandedDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
 
   function startRename(reunion: Reunion) {
     setRenamingId(reunion.id);
@@ -99,22 +108,99 @@ export default function DashboardPage() {
     r.titre.toLowerCase().includes(search.toLowerCase())
   );
 
-  const groups = sortBy === "date"
-    ? (["today", "yesterday", "week", "older"] as const)
-        .map((key) => ({ key, label: GROUP_LABELS[key], items: filtered.filter((r) => getGroup(r.date_debut) === key) }))
-        .filter((g) => g.items.length > 0)
-    : [...new Set(filtered.map((r) => r.type_reunion ?? "__none__"))]
-        .sort((a, b) => {
-          if (a === "__none__") return 1;
-          if (b === "__none__") return -1;
-          return a.localeCompare(b, "fr");
-        })
-        .map((type) => ({
-          key: type,
-          label: type === "__none__" ? "Sans type" : type,
-          items: filtered.filter((r) => (r.type_reunion ?? "__none__") === type),
-        }))
-        .filter((g) => g.items.length > 0);
+  const TODAY_KEY = getTodayKey();
+
+  const dateGroups = (() => {
+    const map = new Map<string, Reunion[]>();
+    for (const r of filtered) {
+      const key = toDayKey(r.date_debut);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(r);
+    }
+    return [...map.entries()]
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([key, items]) => ({
+        key,
+        label: dayLabel(items[0].date_debut),
+        isToday: key === TODAY_KEY,
+        items,
+      }));
+  })();
+
+  const typeGroups = [...new Set(filtered.map((r) => r.type_reunion ?? "__none__"))]
+    .sort((a, b) => {
+      if (a === "__none__") return 1;
+      if (b === "__none__") return -1;
+      return a.localeCompare(b, "fr");
+    })
+    .map((type) => ({
+      key: type,
+      label: type === "__none__" ? "Sans type" : type,
+      items: filtered.filter((r) => (r.type_reunion ?? "__none__") === type),
+    }))
+    .filter((g) => g.items.length > 0);
+
+  function renderItem(reunion: Reunion) {
+    return (
+      <div
+        key={reunion.id}
+        className="group flex items-center gap-2 px-4 py-3 rounded-xl transition-colors hover:bg-muted/50"
+      >
+        {renamingId === reunion.id ? (
+          <div className="flex-1 flex flex-col gap-0.5">
+            <input
+              autoFocus
+              value={renameDraft}
+              onChange={(e) => setRenameDraft(e.target.value)}
+              onBlur={() => saveRename(reunion.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") saveRename(reunion.id);
+                if (e.key === "Escape") { setRenamingId(null); setRenameError(null); }
+              }}
+              className="text-[13.5px] font-medium text-foreground bg-transparent border-b border-primary outline-none"
+            />
+            {renameError && <p className="text-[11px] text-destructive">{renameError}</p>}
+          </div>
+        ) : (
+          <Link href={`/reunions/${reunion.id}`} className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-[13.5px] font-medium text-foreground truncate">
+                {reunion.titre}
+              </span>
+              <StatusDot status={reunion.statut_traitement} />
+            </div>
+            <span className="text-[12px] text-muted-foreground">
+              {formatTime(reunion.date_debut)}
+            </span>
+          </Link>
+        )}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground">
+              <MoreHorizontal size={15} strokeWidth={2} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem className="gap-2" onSelect={() => startRename(reunion)}>
+              <Pencil size={13} />
+              Renommer
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive gap-2"
+              disabled={deleting === reunion.id}
+              onSelect={() => handleDelete(reunion.id)}
+            >
+              <Trash2 size={13} />
+              {deleting === reunion.id ? "Suppression…" : "Supprimer"}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    );
+  }
+
+  const isEmpty = sortBy === "date" ? dateGroups.length === 0 : typeGroups.length === 0;
 
   return (
     <AppSidebar>
@@ -163,77 +249,44 @@ export default function DashboardPage() {
         {loading && (
           <p className="text-sm text-muted-foreground text-center py-12">Chargement…</p>
         )}
-        {!loading && groups.length === 0 && (
+        {!loading && isEmpty && (
           <p className="text-sm text-muted-foreground text-center py-12">
             {search ? "Aucun résultat." : "Aucune réunion pour l'instant."}
           </p>
         )}
-        {groups.map(({ key, label, items }) => (
+
+        {sortBy === "date" && dateGroups.map(({ key, label, isToday, items }) => (
+          <div key={key} className="mb-6">
+            <button
+              onClick={() => toggleDay(key)}
+              className="flex items-center gap-1.5 w-full text-left px-1 mb-2 group/toggle"
+            >
+              {(!isToday && !expandedDays.has(key)) || (isToday && expandedDays.has(key))
+                ? <ChevronRight size={11} className="text-muted-foreground shrink-0" />
+                : <ChevronDown size={11} className="text-muted-foreground shrink-0" />
+              }
+              <span className="text-[10.5px] uppercase tracking-widest font-medium text-muted-foreground group-hover/toggle:text-foreground transition-colors">
+                {label}
+              </span>
+              <span className="text-[10.5px] text-muted-foreground/50 normal-case tracking-normal ml-1">
+                {items.length}
+              </span>
+            </button>
+            {(isToday ? !expandedDays.has(key) : expandedDays.has(key)) && (
+              <div className="space-y-1">
+                {items.map((reunion) => renderItem(reunion))}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {sortBy === "type" && typeGroups.map(({ key, label, items }) => (
           <div key={key} className="mb-8">
             <p className="text-[10.5px] uppercase tracking-widest font-medium text-muted-foreground mb-3 px-1">
               {label}
             </p>
             <div className="space-y-1">
-              {items.map((reunion) => (
-                <div
-                  key={reunion.id}
-                  className="group flex items-center gap-2 px-4 py-3 rounded-xl transition-colors hover:bg-muted/50"
-                >
-                  {renamingId === reunion.id ? (
-                    <div className="flex-1 flex flex-col gap-0.5">
-                      <input
-                        autoFocus
-                        value={renameDraft}
-                        onChange={(e) => setRenameDraft(e.target.value)}
-                        onBlur={() => saveRename(reunion.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") saveRename(reunion.id);
-                          if (e.key === "Escape") { setRenamingId(null); setRenameError(null); }
-                        }}
-                        className="text-[13.5px] font-medium text-foreground bg-transparent border-b border-primary outline-none"
-                      />
-                      {renameError && <p className="text-[11px] text-destructive">{renameError}</p>}
-                    </div>
-                  ) : (
-                    <Link href={`/reunions/${reunion.id}`} className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-[13.5px] font-medium text-foreground truncate">
-                          {reunion.titre}
-                        </span>
-                        <StatusDot status={reunion.statut_traitement} />
-                      </div>
-                      <span className="text-[12px] text-muted-foreground">
-                        {formatTime(reunion.date_debut)}
-                      </span>
-                    </Link>
-                  )}
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground">
-                        <MoreHorizontal size={15} strokeWidth={2} />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        className="gap-2"
-                        onSelect={() => startRename(reunion)}
-                      >
-                        <Pencil size={13} />
-                        Renommer
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive gap-2"
-                        disabled={deleting === reunion.id}
-                        onSelect={() => handleDelete(reunion.id)}
-                      >
-                        <Trash2 size={13} />
-                        {deleting === reunion.id ? "Suppression…" : "Supprimer"}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              ))}
+              {items.map((reunion) => renderItem(reunion))}
             </div>
           </div>
         ))}
