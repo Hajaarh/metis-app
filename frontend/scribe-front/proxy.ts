@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 // Pages accessibles sans connexion ET qui redirigent vers / si déjà connecté
-const AUTH_PAGES = ["/login", "/register"];
+const AUTH_PAGES = ["/login", "/register", "/forgot-password", "/reset-password"];
 // Pages toujours accessibles quel que soit le statut de connexion
 const ALWAYS_PUBLIC = ["/consent"];
 
