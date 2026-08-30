@@ -53,6 +53,7 @@ export default function DashboardPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
+  const [renameError, setRenameError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"date" | "type">("date");
 
   useEffect(() => {
@@ -68,6 +69,7 @@ export default function DashboardPage() {
   }
 
   async function saveRename(id: string) {
+    setRenameError(null);
     if (!renameDraft.trim()) { setRenamingId(null); return; }
     const original = reunions.find((r) => r.id === id)?.titre;
     if (renameDraft.trim() === original) { setRenamingId(null); return; }
@@ -77,8 +79,10 @@ export default function DashboardPage() {
     });
     if (r.ok) {
       setReunions((prev) => prev.map((re) => re.id === id ? { ...re, titre: renameDraft.trim() } : re));
+      setRenamingId(null);
+    } else {
+      setRenameError("Impossible de renommer. Réessayez.");
     }
-    setRenamingId(null);
   }
 
   async function handleDelete(id: string) {
@@ -175,17 +179,20 @@ export default function DashboardPage() {
                   className="group flex items-center gap-2 px-4 py-3 rounded-xl transition-colors hover:bg-muted/50"
                 >
                   {renamingId === reunion.id ? (
-                    <input
-                      autoFocus
-                      value={renameDraft}
-                      onChange={(e) => setRenameDraft(e.target.value)}
-                      onBlur={() => saveRename(reunion.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") saveRename(reunion.id);
-                        if (e.key === "Escape") setRenamingId(null);
-                      }}
-                      className="flex-1 text-[13.5px] font-medium text-foreground bg-transparent border-b border-primary outline-none"
-                    />
+                    <div className="flex-1 flex flex-col gap-0.5">
+                      <input
+                        autoFocus
+                        value={renameDraft}
+                        onChange={(e) => setRenameDraft(e.target.value)}
+                        onBlur={() => saveRename(reunion.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveRename(reunion.id);
+                          if (e.key === "Escape") { setRenamingId(null); setRenameError(null); }
+                        }}
+                        className="text-[13.5px] font-medium text-foreground bg-transparent border-b border-primary outline-none"
+                      />
+                      {renameError && <p className="text-[11px] text-destructive">{renameError}</p>}
+                    </div>
                   ) : (
                     <Link href={`/reunions/${reunion.id}`} className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">

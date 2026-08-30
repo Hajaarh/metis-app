@@ -86,6 +86,8 @@ export default function MeetingDetailPage({
   const [copied, setCopied] = useState(false);
   const [consentNotif, setConsentNotif] = useState<"accepte" | "refuse" | "retractation" | null>(null);
   const [forceStop, setForceStop] = useState(false);
+  const [activeTab, setActiveTab] = useState("transcription");
+  const [highlightedSegmentId, setHighlightedSegmentId] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch("/clients").then((r) => r.json()).then(setClients).catch(() => {});
@@ -146,7 +148,7 @@ export default function MeetingDetailPage({
   async function handleUpload() {
     const audioFile =
       importedFile ??
-      (recordedBlob ? new File([recordedBlob], "enregistrement.webm", { type: recordedBlob.type }) : null);
+      (recordedBlob ? new File([recordedBlob], `enregistrement.${recordedBlob.type.split("/")[1]?.split(";")[0] ?? "webm"}`, { type: recordedBlob.type.split(";")[0] }) : null);
     if (!audioFile) return;
 
     setUploadError("");
@@ -427,7 +429,7 @@ export default function MeetingDetailPage({
 
           {/* Transcription + compte rendu tabs */}
           {!isEnAttente && (
-            <Tabs defaultValue="transcription" className="flex flex-col">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col">
               <TabsList className="mb-6">
                 <TabsTrigger value="transcription">Transcription</TabsTrigger>
                 <TabsTrigger value="compte-rendu">Compte rendu</TabsTrigger>
@@ -435,7 +437,13 @@ export default function MeetingDetailPage({
 
               <TabsContent value="transcription">
                 {segments.length > 0 ? (
-                  <TranscriptView meetingId={id} segments={segments} locuteurs={locuteurs} />
+                  <TranscriptView
+                    meetingId={id}
+                    segments={segments}
+                    locuteurs={locuteurs}
+                    highlightedSegmentId={highlightedSegmentId}
+                    onSegmentHighlighted={() => setHighlightedSegmentId(null)}
+                  />
                 ) : (
                   <div className="flex flex-col items-center gap-3 py-12">
                     {isProcessing ? (
@@ -457,6 +465,10 @@ export default function MeetingDetailPage({
                     pointsCles={points_cles}
                     decisions={decisions}
                     actions={actions}
+                    onGoToSegment={(segmentId) => {
+                      setHighlightedSegmentId(segmentId);
+                      setActiveTab("transcription");
+                    }}
                   />
                 ) : (
                   <div className="flex flex-col items-center gap-3 py-12">

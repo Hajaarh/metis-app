@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, ListTodo, Video, Clock } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  AreaChart, Area, PieChart, Pie, Cell,
+  AreaChart, Area, Cell,
 } from "recharts";
 import { AppSidebar } from "@/app/components/AppSidebar";
 import { apiFetch } from "@/app/lib/api";
@@ -23,7 +23,6 @@ interface Metrics {
   repartition_par_type: Record<string, number>;
   repartition_par_theme: Record<string, number>;
   duree_par_type: Record<string, number>;
-  temps_parole: Record<string, number>;
   par_mois: ParMois[];
 }
 
@@ -106,12 +105,6 @@ export default function DashboardPage() {
       heures: Math.round(seconds / 360) / 10,
     }))
     .sort((a, b) => b.heures - a.heures);
-
-  const tempsParoleData = Object.entries(metrics?.temps_parole ?? {}).map(([name, seconds]) => ({
-    name,
-    seconds,
-  }));
-  const totalParole = tempsParoleData.reduce((acc, d) => acc + d.seconds, 0);
 
   return (
     <AppSidebar>
@@ -224,52 +217,6 @@ export default function DashboardPage() {
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
-                  </div>
-                </div>
-              )}
-
-              {/* Temps de parole */}
-              {tempsParoleData.length > 0 && (
-                <div>
-                  <SectionLabel>Répartition du temps de parole</SectionLabel>
-                  <div className="rounded-xl border border-border p-4 flex flex-col items-center gap-4">
-                    <div style={{ height: 220, width: "100%" }}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={tempsParoleData}
-                            dataKey="seconds"
-                            nameKey="name"
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={55}
-                            outerRadius={90}
-                            strokeWidth={2}
-                            stroke="hsl(var(--card))"
-                          >
-                            {tempsParoleData.map((_, i) => (
-                              <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            {...TOOLTIP_STYLE}
-                            formatter={(v) => [formatDuration(v as number), "temps de parole"]}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="flex flex-wrap justify-center gap-x-5 gap-y-2">
-                      {tempsParoleData.map((d, i) => {
-                        const pct = totalParole > 0 ? Math.round((d.seconds / totalParole) * 100) : 0;
-                        return (
-                          <div key={d.name} className="flex items-center gap-1.5 text-[12px]">
-                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: COLORS[i % COLORS.length] }} />
-                            <span className="text-foreground">{d.name}</span>
-                            <span className="text-muted-foreground">— {formatDuration(d.seconds)} ({pct}%)</span>
-                          </div>
-                        );
-                      })}
-                    </div>
                   </div>
                 </div>
               )}

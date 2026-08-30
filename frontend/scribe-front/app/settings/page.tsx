@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Trash2, Download, Pencil } from "lucide-react";
 import { AppSidebar } from "@/app/components/AppSidebar";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { apiFetch } from "@/app/lib/api";
+import { clearToken } from "@/app/lib/auth";
 
 interface Client {
   id: string;
@@ -16,6 +18,7 @@ interface Client {
 }
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [retention, setRetention] = useState("30");
   const [loading, setLoading] = useState(true);
@@ -25,6 +28,13 @@ export default function SettingsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [newClientNom, setNewClientNom] = useState("");
   const [addingClient, setAddingClient] = useState(false);
+  const [renamingClientId, setRenamingClientId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -69,6 +79,57 @@ export default function SettingsPage() {
     setClients((prev) => prev.filter((c) => c.id !== id));
   }
 
+  function startRenameClient(client: Client) {
+    setRenamingClientId(client.id);
+    setRenameDraft(client.nom);
+  }
+
+  async function saveRenameClient(id: string) {
+    const nom = renameDraft.trim();
+    setRenamingClientId(null);
+    if (!nom || nom === clients.find((c) => c.id === id)?.nom) return;
+    const r = await apiFetch(`/clients/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ nom }),
+    });
+    if (r.ok) {
+      setClients((prev) => prev.map((c) => c.id === id ? { ...c, nom } : c));
+    }
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    setExportError(false);
+    try {
+      const r = await apiFetch("/account/data");
+      if (!r.ok) { setExportError(true); return; }
+      const data = await r.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `metis-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setExportError(true);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    setDeleting(true);
+    const r = await apiFetch("/account", { method: "DELETE" });
+    if (r.ok || r.status === 204) {
+      clearToken();
+      router.push("/login");
+    } else {
+      setDeleting(false);
+      setDeleteConfirm(false);
+    }
+  }
+
   return (
     <AppSidebar>
       <div className="px-4 sm:px-8 pt-6 pb-4 shrink-0 border-b border-border">
@@ -102,14 +163,37 @@ export default function SettingsPage() {
                 <ul className="space-y-1">
                   {clients.map((c) => (
                     <li key={c.id} className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-muted/50">
-                      <span className="text-[13.5px] text-foreground">{c.nom}</span>
-                      <button
-                        onClick={() => handleDeleteClient(c.id)}
-                        className="text-muted-foreground hover:text-destructive transition-colors"
-                        title="Supprimer"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {renamingClientId === c.id ? (
+                        <input
+                          autoFocus
+                          value={renameDraft}
+                          onChange={(e) => setRenameDraft(e.target.value)}
+                          onBlur={() => saveRenameClient(c.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveRenameClient(c.id);
+                            if (e.key === "Escape") setRenamingClientId(null);
+                          }}
+                          className="flex-1 text-[13.5px] text-foreground bg-transparent border-b border-primary outline-none"
+                        />
+                      ) : (
+                        <span className="flex-1 text-[13.5px] text-foreground">{c.nom}</span>
+                      )}
+                      <div className="flex items-center gap-2 ml-2 shrink-0">
+                        <button
+                          onClick={() => startRenameClient(c)}
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                          title="Renommer"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClient(c.id)}
+                          className="text-muted-foreground hover:text-destructive transition-colors"
+                          title="Supprimer"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -171,6 +255,65 @@ export default function SettingsPage() {
             </Button>
             {saved && <span className="text-sm text-[#5E9E72]">Modifications enregistrées</span>}
           </div>
+
+          <Card className="border-destructive/30">
+            <CardHeader>
+              <CardTitle className="text-destructive">Données personnelles</CardTitle>
+              <CardDescription>Export et suppression de vos données conformément au RGPD</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col sm:flex-row items-start gap-3">
+                <Button
+                  variant="outline"
+                  onClick={handleExport}
+                  disabled={loading || exporting}
+                  className="gap-2"
+                >
+                  <Download size={14} />
+                  {exporting ? "Export en cours…" : "Exporter mes données"}
+                </Button>
+                {exportError && (
+                  <p className="text-[12px] text-destructive self-center">
+                    L&apos;export a échoué. Réessayez.
+                  </p>
+                )}
+              </div>
+              <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Supprimer mon compte</p>
+                  <p className="text-[12px] text-muted-foreground mt-0.5">
+                    Supprime définitivement votre compte et toutes vos données (réunions, transcriptions, comptes rendus). Cette action est irréversible.
+                  </p>
+                </div>
+                {!deleteConfirm ? (
+                  <Button
+                    variant="outline"
+                    className="border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground gap-2"
+                    onClick={() => setDeleteConfirm(true)}
+                  >
+                    <Trash2 size={14} />
+                    Supprimer mon compte
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <Button
+                      variant="destructive"
+                      onClick={handleDeleteAccount}
+                      disabled={deleting}
+                    >
+                      {deleting ? "Suppression…" : "Confirmer la suppression"}
+                    </Button>
+                    <button
+                      onClick={() => setDeleteConfirm(false)}
+                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </AppSidebar>

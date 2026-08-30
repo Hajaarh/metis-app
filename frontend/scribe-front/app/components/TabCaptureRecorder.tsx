@@ -21,7 +21,7 @@ export function TabCaptureRecorder({ onBlobReady, forceStop }: TabCaptureRecorde
 
   useEffect(() => {
     if (forceStop && state === "recording") stopRecording();
-  }, [forceStop]);
+  }, [forceStop, state]);
 
   async function startCapture() {
     setError("");
