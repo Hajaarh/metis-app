@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/ta
 import { Button } from "@/app/components/ui/button";
 import { apiFetch, API_URL } from "@/app/lib/api";
 import { getToken } from "@/app/lib/auth";
+import { useRecording } from "@/app/lib/recording-context";
 
 interface Reunion {
   id: string;
@@ -79,14 +80,18 @@ export default function MeetingDetailPage({
   const titleInputRef = useRef<HTMLInputElement>(null);
 
   const [audioSource, setAudioSource] = useState<"record" | "import">("record");
-  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [importedFile, setImportedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [copied, setCopied] = useState(false);
   const [consentNotif, setConsentNotif] = useState<"accepte" | "refuse" | "retractation" | null>(null);
-  const [forceStop, setForceStop] = useState(false);
   const [activeTab, setActiveTab] = useState("transcription");
+
+  const { meetingId: recordingMeetingId, recordingState, blob: recordedBlob, stopRecording, resetRecording } = useRecording();
+  const isOwnRecording = recordingMeetingId === id;
+
+  const [tabCaptureBlob, setTabCaptureBlob] = useState<Blob | null>(null);
+  const [forceStopVisio, setForceStopVisio] = useState(false);
   const [highlightedSegmentId, setHighlightedSegmentId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -120,7 +125,8 @@ export default function MeetingDetailPage({
           prev ? { ...prev, consentements_signes: msg.signes, consentements_total: msg.total } : prev
         );
         if (msg.retractation) {
-          setForceStop(true);
+          if (isOwnRecording) stopRecording();
+          setForceStopVisio(true);
           setConsentNotif("retractation");
         } else {
           setConsentNotif(msg.choix);
@@ -146,9 +152,10 @@ export default function MeetingDetailPage({
   }, [id]);
 
   async function handleUpload() {
+    const activeBlob = detail?.reunion.mode === "visio" ? tabCaptureBlob : (isOwnRecording ? recordedBlob : null);
     const audioFile =
       importedFile ??
-      (recordedBlob ? new File([recordedBlob], `enregistrement.${recordedBlob.type.split("/")[1]?.split(";")[0] ?? "webm"}`, { type: recordedBlob.type.split(";")[0] }) : null);
+      (activeBlob ? new File([activeBlob], `enregistrement.${activeBlob.type.split("/")[1]?.split(";")[0] ?? "webm"}`, { type: activeBlob.type.split(";")[0] }) : null);
     if (!audioFile) return;
 
     setUploadError("");
@@ -166,6 +173,8 @@ export default function MeetingDetailPage({
 
     if (!r.ok) {
       setUploadError("L'upload a échoué. Réessayez.");
+    } else {
+      resetRecording();
     }
     setUploading(false);
   }
@@ -235,7 +244,11 @@ export default function MeetingDetailPage({
   const { reunion, jeton_consentement, consentements_signes, consentements_total, segments, locuteurs, compte_rendu, points_cles, decisions, actions } = detail;
   const isEnAttente = reunion.statut_traitement === "en_attente";
   const isProcessing = reunion.statut_traitement === "transcription" || reunion.statut_traitement === "analyse";
-  const audioReady = audioSource === "import" ? importedFile !== null : recordedBlob !== null;
+  const audioReady = audioSource === "import"
+    ? importedFile !== null
+    : reunion.mode === "visio"
+    ? tabCaptureBlob !== null
+    : isOwnRecording && recordingState === "done" && recordedBlob !== null;
   const consentBlocked = !!jeton_consentement && consentements_signes < consentements_total;
 
   return (
@@ -368,7 +381,7 @@ export default function MeetingDetailPage({
                 </div>
 
                 {reunion.mode === "visio" ? (
-                  <TabCaptureRecorder onBlobReady={setRecordedBlob} forceStop={forceStop} />
+                  <TabCaptureRecorder onBlobReady={setTabCaptureBlob} forceStop={forceStopVisio} />
                 ) : (
                   <>
                     {/* Source toggle — dictaphone only */}
@@ -390,7 +403,7 @@ export default function MeetingDetailPage({
                       })}
                     </div>
                     {audioSource === "record" ? (
-                      <AudioRecorder onBlobReady={setRecordedBlob} forceStop={forceStop} />
+                      <AudioRecorder meetingId={id} />
                     ) : (
                       <AudioImport onFileChange={setImportedFile} />
                     )}

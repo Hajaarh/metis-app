@@ -7,6 +7,7 @@ import { Mic, Calendar, Users, Settings, Plus, LogOut, BarChart2, Menu } from "l
 import { MeetingAvatar } from "./MeetingAvatar";
 import { clearToken } from "@/app/lib/auth";
 import { apiFetch } from "@/app/lib/api";
+import { useRecording } from "@/app/lib/recording-context";
 
 interface AppSidebarProps {
   children?: React.ReactNode;
@@ -24,6 +25,8 @@ export function AppSidebar({ children }: AppSidebarProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { meetingId: recordingMeetingId, recordingState } = useRecording();
+  const isRecording = recordingMeetingId !== null && (recordingState === "recording" || recordingState === "paused");
 
   useEffect(() => {
     apiFetch("/account/profile")
@@ -118,6 +121,19 @@ export function AppSidebar({ children }: AppSidebarProps) {
           </button>
         </div>
       </aside>
+
+      {/* Recording floating badge */}
+      {isRecording && (
+        <Link
+          href={`/reunions/${recordingMeetingId}`}
+          className="fixed bottom-5 right-5 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-full shadow-lg bg-background border border-border transition-colors hover:bg-muted"
+        >
+          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+          <span className="text-[12.5px] font-medium text-red-600">
+            {recordingState === "paused" ? "En pause" : "Enregistrement en cours"}
+          </span>
+        </Link>
+      )}
 
       {/* Main content */}
       <main className="flex-1 flex flex-col overflow-hidden bg-background">
