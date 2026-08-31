@@ -36,7 +36,7 @@ export default function ChartePage() {
           ],
           [
             <strong key="g3">Un outil de recueil du consentement des participants</strong>,
-            <span key="c3" className="text-foreground">Un lien (en visio) ou un écran (en présentiel) que vous transmettez à vos participants pour les informer et recueillir leur accord.</span>,
+            <span key="c3" className="text-foreground">Un lien transmis avant la réunion (en visio) ou une information orale préalable (en présentiel) pour informer les participants et recueillir leur accord.</span>,
           ],
           [
             <strong key="g4">Le droit d&apos;accès, de rectification, d&apos;opposition et d&apos;effacement</strong>,

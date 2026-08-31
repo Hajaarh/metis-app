@@ -154,7 +154,7 @@ export default function ParticipantPage() {
             ],
             [
               <strong key="c2">Réunion en présentiel</strong>,
-              <span key="p2" className="text-foreground">L&apos;organisateur vous informe à l&apos;oral, puis vous cochez ou signez votre accord sur votre propre téléphone, avant que l&apos;enregistrement démarre.</span>,
+              <span key="p2" className="text-foreground">L&apos;organisateur vous informe à l&apos;oral avant de démarrer l&apos;enregistrement. Votre accord ou refus est recueilli oralement.</span>,
             ],
           ]}
         />
