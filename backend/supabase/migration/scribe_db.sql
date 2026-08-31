@@ -1,6 +1,5 @@
 create extension if not exists "pgcrypto";
 
-
 create table utilisateur (
     id uuid primary key references auth.users(id) on delete cascade,  
     email text not null unique,
@@ -28,6 +27,7 @@ create table reunion (
     type_reunion text,                   
     base_legale text not null,           
     statut_traitement text not null,
+    message_erreur text,                  -- message de l'exception si statut_traitement passe a erreur
     audio_purge boolean not null default false,
     date_purge_audio timestamp,           
     nombre_participants int,              
@@ -93,7 +93,8 @@ create table decision (
     id uuid primary key default gen_random_uuid(),
     compte_rendu_id uuid not null references compte_rendu(id) on delete cascade,
     contenu text not null,
-    ordre int not null
+    ordre int not null,
+    segment_id uuid references segment(id) on delete set null  -- nullable, segment source
 );
 
 
@@ -102,7 +103,8 @@ create table action (
     compte_rendu_id uuid not null references compte_rendu(id) on delete cascade,
     intitule text not null,
     responsable text,                      -- nullable
-    echeance date                          -- nullable
+    echeance date,                         -- nullable
+    segment_id uuid references segment(id) on delete set null  -- nullable, segment source
 );
 
 

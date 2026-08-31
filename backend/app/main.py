@@ -1,44 +1,32 @@
-from contextlib import asynccontextmanager
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import (
-    routes_auth,
-    routes_consent,
-    routes_dashboard,
-    routes_meetings,
-    routes_ws_meetings,
-)
-from app.core.config import settings
+from app.api import routes_account, routes_auth, routes_clients, routes_consent, routes_dashboard, routes_meetings, routes_ws_meetings
 
+app = FastAPI(title="Metis API", version="0.1.0")
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    yield
-
-
-app = FastAPI(
-    title=settings.app_name,
-    version="0.1.0",
-    lifespan=lifespan,
-)
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173")
+allowed_origins = [o.strip() for o in _raw_origins.split(",")]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(routes_auth.router, prefix="/auth", tags=["auth"])
-app.include_router(routes_meetings.router, prefix="/meetings", tags=["meetings"])
-app.include_router(routes_ws_meetings.router, prefix="/ws", tags=["visio"])
-app.include_router(routes_consent.router, prefix="/consent", tags=["consent"])
-app.include_router(routes_dashboard.router, prefix="/dashboard", tags=["dashboard"])
+app.include_router(routes_auth.router)
+app.include_router(routes_meetings.router)
+app.include_router(routes_clients.router)
+app.include_router(routes_consent.router)
+app.include_router(routes_dashboard.router)
+app.include_router(routes_account.router)
+app.include_router(routes_ws_meetings.router)
 
 
 @app.get("/health")
-async def health():
-    return {"status": "ok", "env": settings.env}
+def health():
+    return {"statut": "ok"}
