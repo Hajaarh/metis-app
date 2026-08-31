@@ -30,7 +30,6 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [retention, setRetention] = useState("90");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -160,23 +159,7 @@ export default function RegisterPage() {
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="retention">Durée de rétention audio (jours)</Label>
-              <Input
-                id="retention"
-                type="number"
-                min="1"
-                max="365"
-                value={retention}
-                onChange={(e) => setRetention(e.target.value)}
-                required
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Conformément au RGPD, les fichiers audio seront supprimés après cette durée.
-              </p>
-            </div>
-
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error &&<p className="text-sm text-destructive">{error}</p>}
 
             <Button type="submit" className="w-full" disabled={loading || passwordMismatch}>
               {loading ? "Création…" : "Créer mon compte"}
