@@ -24,6 +24,15 @@ function formatTime(dateStr: string): string {
   });
 }
 
+function formatDateTime(dateStr: string): string {
+  return new Date(dateStr).toLocaleString("fr-FR", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function toDayKey(dateStr: string): string {
   const d = new Date(dateStr);
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -140,7 +149,7 @@ export default function DashboardPage() {
     }))
     .filter((g) => g.items.length > 0);
 
-  function renderItem(reunion: Reunion) {
+  function renderItem(reunion: Reunion, showDate = false) {
     return (
       <div
         key={reunion.id}
@@ -170,7 +179,7 @@ export default function DashboardPage() {
               <StatusDot status={reunion.statut_traitement} />
             </div>
             <span className="text-[12px] text-muted-foreground">
-              {formatTime(reunion.date_debut)}
+              {showDate ? formatDateTime(reunion.date_debut) : formatTime(reunion.date_debut)}
             </span>
           </Link>
         )}
@@ -286,7 +295,7 @@ export default function DashboardPage() {
               {label}
             </p>
             <div className="space-y-1">
-              {items.map((reunion) => renderItem(reunion))}
+              {items.map((reunion) => renderItem(reunion, true))}
             </div>
           </div>
         ))}
