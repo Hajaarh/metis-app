@@ -178,12 +178,10 @@ export default function ConsentPage({
       </p>
 
       <a
-        href="https://www.cnil.fr/fr/les-droits-pour-maitriser-vos-donnees-personnelles"
-        target="_blank"
-        rel="noopener noreferrer"
+        href="/legal/participant"
         className="mt-3 text-[11.5px] text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
       >
-        En savoir plus sur vos droits ·
+        Notice d&apos;information complète
       </a>
     </ConsentShell>
   );

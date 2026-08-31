@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Download, Pencil } from "lucide-react";
+import { Trash2, Download, Pencil, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import { AppSidebar } from "@/app/components/AppSidebar";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
@@ -20,10 +21,7 @@ interface Client {
 export default function SettingsPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
-  const [retention, setRetention] = useState("30");
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
 
   const [clients, setClients] = useState<Client[]>([]);
   const [newClientNom, setNewClientNom] = useState("");
@@ -48,21 +46,9 @@ export default function SettingsPage() {
       apiFetch("/clients").then((r) => r.json()),
     ]).then(([profile, clientList]) => {
       setEmail(profile.email ?? "");
-      setRetention(profile.duree_retention_jours?.toString() ?? "30");
       setClients(clientList);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
-
-  async function handleSave() {
-    setSaving(true);
-    await apiFetch("/account/profile", {
-      method: "PATCH",
-      body: JSON.stringify({ duree_retention_jours: parseInt(retention) }),
-    });
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  }
 
   async function handleAddClient() {
     const nom = newClientNom.trim();
@@ -296,39 +282,26 @@ export default function SettingsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Rétention des données</CardTitle>
-              <CardDescription>Configuration de la suppression automatique des fichiers audio</CardDescription>
+              <CardTitle>Conformité</CardTitle>
+              <CardDescription>Documents relatifs à la protection des données et au RGPD</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="retention">Durée de rétention audio (jours)</Label>
-                <Input
-                  id="retention"
-                  type="number"
-                  min="1"
-                  max="365"
-                  value={retention}
-                  onChange={(e) => setRetention(e.target.value)}
-                  disabled={loading}
-                />
-              </div>
-              <div className="rounded-xl bg-accent p-4">
-                <p className="text-[12.5px] text-accent-foreground leading-relaxed">
-                  Conformément au RGPD et aux recommandations de la CNIL, les fichiers audio
-                  des réunions seront automatiquement supprimés après{" "}
-                  <strong>{retention} jours</strong>. Les transcriptions et comptes rendus
-                  textuels sont conservés indépendamment.
-                </p>
-              </div>
+            <CardContent className="divide-y divide-border">
+              {[
+                { href: "/legal/charte", label: "Charte d'engagement de l'utilisateur" },
+                { href: "/legal/organisateur", label: "Notice organisateur" },
+                { href: "/legal/entreprises", label: "Notice entreprises clientes" },
+              ].map(({ href, label }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className="flex items-center justify-between py-3 first:pt-0 last:pb-0 text-[13.5px] text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {label}
+                  <ChevronRight size={14} className="shrink-0" />
+                </Link>
+              ))}
             </CardContent>
           </Card>
-
-          <div className="flex items-center gap-3">
-            <Button onClick={handleSave} disabled={loading || saving}>
-              {saving ? "Enregistrement…" : saved ? "Enregistré !" : "Enregistrer les modifications"}
-            </Button>
-            {saved && <span className="text-sm text-[#5E9E72]">Modifications enregistrées</span>}
-          </div>
 
           <Card className="border-destructive/30">
             <CardHeader>
