@@ -41,8 +41,7 @@ export default function OrganisateurPage() {
           temps les données seront conservées.
         </PlainLi>
         <PlainLi>
-          Leur avoir donné les moyens de refuser,via le lien envoyé en visio, ou l&apos;oral et la validation
-          sur leur téléphone en présentiel.
+          Leur avoir donné les moyens de refuser : via le lien envoyé en visio, ou oralement en présentiel.
         </PlainLi>
         <PlainLi>Vérifier qu&apos;aucun participant présent n&apos;a exprimé de refus.</PlainLi>
         <PlainLi>
