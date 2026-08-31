@@ -1,7 +1,7 @@
 # Documentation Metis
 
 Référence fichier par fichier / dossier par dossier : ce que fait chaque partie, pourquoi, et la logique
-derrière. Concis, pour réviser vite — pas un guide détaillé.
+derrière.
 
 ## Architecture backend — Ports & Adapters
 
