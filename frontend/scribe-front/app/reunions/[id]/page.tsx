@@ -2,7 +2,8 @@
 
 import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Calendar, Copy, Check, Loader2, AlertCircle, Pencil } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Calendar, Copy, Check, Loader2, AlertCircle, Pencil, Trash2 } from "lucide-react";
 import { AppSidebar } from "@/app/components/AppSidebar";
 import { StatusDot, type BackendStatus } from "@/app/components/StatusDot";
 import { TranscriptView, type Segment, type Locuteur } from "@/app/components/TranscriptView";
@@ -85,8 +86,11 @@ export default function MeetingDetailPage({
   const [uploadError, setUploadError] = useState("");
   const [copied, setCopied] = useState(false);
   const [consentNotif, setConsentNotif] = useState<"accepte" | "refuse" | "retractation" | null>(null);
+  const [hasRefused, setHasRefused] = useState(false);
+  const [hasRetracted, setHasRetracted] = useState(false);
   const [activeTab, setActiveTab] = useState("transcription");
 
+  const router = useRouter();
   const { meetingId: recordingMeetingId, recordingState, blob: recordedBlob, stopRecording, resetRecording } = useRecording();
   const isOwnRecording = recordingMeetingId === id;
 
@@ -110,7 +114,7 @@ export default function MeetingDetailPage({
     fetchOnce();
   }, [id]);
 
-  // WebSocket — reçoit les mises à jour de statut en temps réel
+  // WebSocket : reçoit les mises à jour de statut en temps réel
   useEffect(() => {
     const token = getToken();
     if (!token) return;
@@ -127,8 +131,10 @@ export default function MeetingDetailPage({
         if (msg.retractation) {
           if (isOwnRecording) stopRecording();
           setForceStopVisio(true);
+          setHasRetracted(true);
           setConsentNotif("retractation");
         } else {
+          if (msg.choix === "refuse") setHasRefused(true);
           setConsentNotif(msg.choix);
         }
         setTimeout(() => setConsentNotif(null), 5000);
@@ -177,6 +183,11 @@ export default function MeetingDetailPage({
       resetRecording();
     }
     setUploading(false);
+  }
+
+  async function handleDeleteMeeting() {
+    const r = await apiFetch(`/meetings/${id}`, { method: "DELETE" });
+    if (r.ok || r.status === 204) router.push("/");
   }
 
   function startEditingTitle() {
@@ -249,10 +260,26 @@ export default function MeetingDetailPage({
     : reunion.mode === "visio"
     ? tabCaptureBlob !== null
     : isOwnRecording && recordingState === "done" && recordedBlob !== null;
-  const consentBlocked = !!jeton_consentement && consentements_signes < consentements_total;
+  const consentBlocked = !!jeton_consentement && (consentements_signes < consentements_total || hasRefused || hasRetracted);
 
   return (
     <AppSidebar>
+      {/* Floating consent toast */}
+      {consentNotif && (
+        <div className={`fixed top-5 right-5 z-50 flex items-center gap-2.5 rounded-xl px-4 py-3 text-[13px] font-medium shadow-lg ${
+          consentNotif === "accepte"
+            ? "bg-green-50 border border-green-200 text-green-700"
+            : "bg-red-600 text-white"
+        }`}>
+          {consentNotif === "accepte" ? <Check size={14} /> : <AlertCircle size={14} />}
+          {consentNotif === "retractation"
+            ? "Un participant a rétracté son consentement. L'enregistrement a été arrêté."
+            : consentNotif === "accepte"
+            ? `Consentement accepté (${consentements_signes}/${consentements_total}).`
+            : "Un participant a refusé. Voir les détails ci-dessous."}
+        </div>
+      )}
+
       {/* Header */}
       <div className="px-4 sm:px-8 pt-6 pb-4 shrink-0 border-b border-border">
         <div className="flex items-center gap-3 mb-3">
@@ -314,22 +341,19 @@ export default function MeetingDetailPage({
       <div className="flex-1 overflow-y-auto scrollbar-hide">
         <div className="max-w-[680px] mx-auto px-4 sm:px-8 py-8 space-y-8">
 
-          {/* Consent link + audio upload — visible only when en_attente */}
+          {/* Consent link + audio upload : visible only when en_attente */}
           {isEnAttente && (
             <div className="space-y-6">
-              {/* Consent notification */}
-              {consentNotif && (
-                <div className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium ${
-                  consentNotif === "accepte"
-                    ? "bg-green-50 border border-green-200 text-green-700"
-                    : "bg-red-50 border border-red-200 text-red-700"
-                }`}>
-                  {consentNotif === "accepte" ? <Check size={14} /> : <AlertCircle size={14} />}
-                  {consentNotif === "retractation"
-                    ? "Un participant a rétracté son consentement. L'enregistrement a été arrêté."
-                    : consentNotif === "accepte"
-                    ? `Un participant a accepté (${consentements_signes}/${consentements_total}).`
-                    : "Un participant a refusé l'enregistrement."}
+              {/* Persistent refusal banner */}
+              {hasRefused && (
+                <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3.5">
+                  <AlertCircle size={15} className="text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[13px] font-semibold text-red-700 mb-0.5">Un participant a refusé d&apos;être enregistré</p>
+                    <p className="text-[12px] text-red-600 leading-relaxed">
+                      Vous ne pouvez pas lancer la transcription tant que ce refus n&apos;est pas levé. Contactez l&apos;organisateur ou retirez ce participant de la liste.
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -376,55 +400,70 @@ export default function MeetingDetailPage({
                     Audio
                   </p>
                   <p className="text-[13px] text-muted-foreground">
-                    Enregistrez ou importez l&apos;audio de la réunion une fois le consentement obtenu.
+                    {hasRetracted
+                      ? "Un participant a rétracté son consentement. La réunion ne peut pas être traitée."
+                      : "Enregistrez ou importez l'audio de la réunion une fois le consentement obtenu."}
                   </p>
                 </div>
 
-                {reunion.mode === "visio" ? (
-                  <TabCaptureRecorder onBlobReady={setTabCaptureBlob} forceStop={forceStopVisio} />
-                ) : (
-                  <>
-                    {/* Source toggle — dictaphone only */}
-                    <div className="flex items-center rounded-[10px] p-[3px] gap-0.5 bg-muted w-fit">
-                      {(["record", "import"] as const).map((value) => {
-                        const active = audioSource === value;
-                        return (
-                          <button
-                            key={value}
-                            type="button"
-                            onClick={() => setAudioSource(value)}
-                            className={`px-3.5 py-1.5 rounded-[8px] text-[12.5px] font-medium transition-all ${
-                              active ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
-                            }`}
-                          >
-                            {value === "record" ? "Enregistrer" : "Importer"}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {audioSource === "record" ? (
-                      <AudioRecorder meetingId={id} />
-                    ) : (
-                      <AudioImport onFileChange={setImportedFile} />
-                    )}
-                  </>
+                {!hasRetracted && (
+                  reunion.mode === "visio" ? (
+                    <TabCaptureRecorder onBlobReady={setTabCaptureBlob} forceStop={forceStopVisio} />
+                  ) : (
+                    <>
+                      {/* Source toggle : dictaphone only */}
+                      <div className="flex items-center rounded-[10px] p-[3px] gap-0.5 bg-muted w-fit">
+                        {(["record", "import"] as const).map((value) => {
+                          const active = audioSource === value;
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => setAudioSource(value)}
+                              className={`px-3.5 py-1.5 rounded-[8px] text-[12.5px] font-medium transition-all ${
+                                active ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+                              }`}
+                            >
+                              {value === "record" ? "Enregistrer" : "Importer"}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {audioSource === "record" ? (
+                        <AudioRecorder meetingId={id} />
+                      ) : (
+                        <AudioImport onFileChange={setImportedFile} />
+                      )}
+                    </>
+                  )
                 )}
 
                 {uploadError && <p className="text-sm text-destructive">{uploadError}</p>}
 
-                {consentBlocked && (
+                {consentBlocked && !hasRefused && !hasRetracted && (
                   <p className="text-[12.5px] text-yellow-600">
-                    En attente de la signature du participant avant de lancer la transcription.
+                    En attente de la signature de tous les participants avant de lancer la transcription.
                   </p>
                 )}
 
-                <Button
-                  onClick={handleUpload}
-                  disabled={!audioReady || uploading || consentBlocked}
-                  className="w-full"
-                >
-                  {uploading ? "Envoi en cours…" : "Lancer la transcription"}
-                </Button>
+                {hasRetracted ? (
+                  <Button
+                    variant="destructive"
+                    onClick={handleDeleteMeeting}
+                    className="w-full"
+                  >
+                    <Trash2 size={14} />
+                    Supprimer la réunion
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleUpload}
+                    disabled={!audioReady || uploading || consentBlocked}
+                    className="w-full"
+                  >
+                    {uploading ? "Envoi en cours…" : "Lancer la transcription"}
+                  </Button>
+                )}
               </div>
             </div>
           )}
