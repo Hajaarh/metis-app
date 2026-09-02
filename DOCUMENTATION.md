@@ -49,8 +49,6 @@ Logique métier centrale. `MeetingPipeline.run()` :
 
 Exceptions dédiées : `AttestationManquanteError`, `ConsentementRefuseError`.
 
-**Limite connue** : le consentement n'est vérifié qu'une fois, au démarrage — une rétractation pendant un
-traitement en cours ne l'interrompt pas.
 
 ### `db/`
 - `client.py` — client Supabase, singleton `lru_cache`.
